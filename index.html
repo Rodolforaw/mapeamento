@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Controle de Obra - Mapa Maricá</title>
+    
+    <!-- PWA Meta Tags -->
+    <meta name="theme-color" content="#2196F3">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <meta name="apple-mobile-web-app-title" content="Controle de Obra">
+    <link rel="manifest" href="manifest.json">
+    
+    <!-- Leaflet CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet-draw@1.0.4/dist/leaflet.draw.css" />
+    
+    <!-- Custom CSS -->
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div id="map"></div>
+    
+    <!-- Control Panel -->
+    <div id="control-panel">
+        <div class="control-group">
+            <button id="satellite-toggle" class="control-btn">
+                <span class="icon">🛰️</span>
+                Satélite
+            </button>
+            
+            <button id="export-kmz" class="control-btn">
+                <span class="icon">📁</span>
+                Exportar KMZ
+            </button>
+            
+            <button id="export-excel" class="control-btn">
+                <span class="icon">📊</span>
+                Exportar Excel
+            </button>
+            
+            <label for="import-kmz" class="control-btn">
+                <span class="icon">📂</span>
+                Importar KMZ
+                <input type="file" id="import-kmz" accept=".kmz,.kml" multiple style="display: none;">
+            </label>
+            
+            <button id="manage-works" class="control-btn" title="Gerenciar obras">
+                <span class="icon">📊</span>
+                Gerenciar Obras
+            </button>
+            
+            <button id="sync-offline" class="control-btn sync-btn" style="display: none;">
+                <span class="icon">🔄</span>
+                Sincronizar
+            </button>
+            
+            <button id="clear-data" class="control-btn danger-btn">
+                <span class="icon">🗑️</span>
+                Limpar Dados
+            </button>
+            
+            <button id="location-toggle" class="control-btn" title="Ativar rastreamento de localização">
+                📍 Minha Localização
+            </button>
+        </div>
+    </div>
+    
+    <!-- Loading Indicator -->
+    <div id="loading" class="loading">
+        <div class="spinner"></div>
+        <p>Carregando mapa...</p>
+    </div>
+    
+    <!-- Scripts -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://unpkg.com/leaflet-draw@1.0.4/dist/leaflet.draw.js"></script>
+    <!-- JSZip para manipulação de arquivos ZIP -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <script src="https://unpkg.com/file-saver@2.0.5/dist/FileSaver.min.js"></script>
+    
+    <!-- SheetJS para exportação Excel -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <script src="app.js"></script>
+
+</div>
+
+    <!-- Modal de Gerenciamento de Obras -->
+    <div id="works-modal" class="modal">
+        <div class="modal-content works-modal-content">
+            <div class="modal-header">
+                <h3>📊 Gerenciamento de Obras</h3>
+                <span class="modal-close">&times;</span>
+            </div>
+            <div class="modal-body">
+                <div class="works-summary">
+                    <div class="summary-card">
+                        <h4>📈 Resumo</h4>
+                        <p><strong>Total de Obras:</strong> <span id="total-works">0</span></p>
+                        <p><strong>Total de Marcações:</strong> <span id="total-markings">0</span></p>
+                    </div>
+                </div>
+                
+                <div class="works-filters">
+                    <input type="text" id="search-works" placeholder="🔍 Buscar por número da O.S..." class="search-input">
+                    <button id="refresh-works" class="filter-btn">🔄 Atualizar</button>
+                </div>
+                
+                <div class="works-table-container">
+                    <table id="works-table" class="works-table">
+                        <thead>
+                            <tr>
+                                <th>Número da O.S.</th>
+                                <th>Produto</th>
+                                <th>Marcações</th>
+                                <th>Última Atualização</th>
+                                <th>Ações</th>
+                            </tr>
+                        </thead>
+                        <tbody id="works-table-body">
+                            <!-- Dados serão inseridos dinamicamente -->
+                        </tbody>
+                    </table>
+                </div>
+                
+                <div class="works-actions">
+                    <button id="export-all-works" class="action-btn primary">
+                        📦 Exportar Todas as Obras
+                    </button>
+                    <button id="clear-all-works" class="action-btn danger">
+                        🗑️ Limpar Todas as Obras
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal para informações da marcação -->
+    <div id="marking-modal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Informações da Marcação</h3>
+                <span class="modal-close">&times;</span>
+            </div>
+            <div class="modal-body">
+                <form id="marking-form">
+                    <div class="form-group">
+                        <label for="os-number">Número da O.S:</label>
+                        <input type="text" id="os-number" name="osNumber" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="product">Produto:</label>
+                        <input type="text" id="product" name="product" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="measurement">Metragem:</label>
+                        <input type="number" id="measurement" name="measurement" step="0.01" required>
+                        <select id="measurement-unit" name="measurementUnit">
+                            <option value="m">metros (m)</option>
+                            <option value="m²">metros² (m²)</option>
+                            <option value="km">quilômetros (km)</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="description">Descrição:</label>
+                        <textarea id="description" name="description" rows="3" placeholder="Descrição detalhada da marcação..."></textarea>
+                    </div>
+                    <div class="form-actions">
+                        <button type="button" id="cancel-marking" class="btn-secondary">Cancelar</button>
+                        <button type="submit" class="btn-primary">Salvar Marcação</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</body>
+</html>
