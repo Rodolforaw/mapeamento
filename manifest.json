@@ -1,0 +1,29 @@
+{
+    "name": "Controle de Obra - Maricá",
+    "short_name": "Controle Obra",
+    "description": "Aplicativo para controle de obra com mapa interativo de Maricá",
+    "start_url": "./index.html",
+    "display": "standalone",
+    "background_color": "#ffffff",
+    "theme_color": "#2196F3",
+    "orientation": "any",
+    "scope": "./",
+    "lang": "pt-BR",
+    "icons": [
+        {
+            "src": "./icon-192.svg",
+            "sizes": "192x192",
+            "type": "image/svg+xml",
+            "purpose": "any maskable"
+        },
+        {
+            "src": "./icon-512.svg",
+            "sizes": "512x512",
+            "type": "image/svg+xml",
+            "purpose": "any maskable"
+        }
+    ],
+    "categories": ["productivity", "utilities"],
+    "screenshots": [],
+    "prefer_related_applications": false
+}
