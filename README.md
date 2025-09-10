@@ -87,6 +87,13 @@ Aplicativo PWA (Progressive Web App) para controle de obra com mapa interativo f
 
 ## 🔧 Instalação
 
+### Opção 1: Deploy no Netlify (Recomendado)
+1. **Configure o Supabase:** Siga o guia em `CONFIGURAR_SUPABASE.md`
+2. **Faça o deploy:** Siga o guia em `NETLIFY_DEPLOY.md`
+3. **Documentação completa:** Consulte `SUPABASE_SETUP.md`
+4. Acesse sua URL do Netlify
+
+### Opção 2: Servidor Local
 1. Baixe todos os arquivos do projeto
 2. Certifique-se de que o Node.js está instalado
 3. Execute `node server.js` no terminal
@@ -125,6 +132,8 @@ Controle de obra/
 - **JSZip** - Manipulação de arquivos ZIP/KMZ
 - **SheetJS** - Exportação para Excel
 - **Service Worker** - Funcionalidade offline
+- **Supabase** - Banco de dados e sincronização em tempo real
+- **Netlify Functions** - APIs serverless
 - **HTML5/CSS3/JavaScript** - Tecnologias web modernas
 
 ## 🎯 Casos de Uso
