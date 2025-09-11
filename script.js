@@ -80,8 +80,8 @@ function initializeMap() {
 
     map.addControl(drawControl);
     
-    // Conectar botões personalizados com o Leaflet.draw
-    connectCustomDrawButtons();
+    // Conectar barra de ferramentas nativa
+    connectNativeToolbar();
 
     // Eventos de desenho
     map.on(L.Draw.Event.CREATED, function(event) {
@@ -458,47 +458,47 @@ function generateWorkId() {
     return 'work_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
 }
 
-// Conectar botões personalizados com Leaflet.draw
-function connectCustomDrawButtons() {
-    // Aguardar um pouco para garantir que os elementos estejam carregados
+// Conectar barra de ferramentas nativa
+function connectNativeToolbar() {
+    // Aguardar um pouco para garantir que os controles estejam carregados
     setTimeout(() => {
-        // Botão de linha
+        // Conectar botão de linha
         const polylineBtn = document.querySelector('.leaflet-draw-draw-polyline');
         if (polylineBtn) {
             polylineBtn.addEventListener('click', function(e) {
                 e.preventDefault();
-                // Simular clique no botão nativo do Leaflet
-                const nativePolylineBtn = document.querySelector('.leaflet-draw-toolbar-top .leaflet-draw-draw-polyline');
-                if (nativePolylineBtn) {
-                    nativePolylineBtn.click();
+                // Ativar modo de desenho de linha
+                const drawControl = map._layers[Object.keys(map._layers).find(key => map._layers[key]._drawing)];
+                if (drawControl && drawControl._toolbars && drawControl._toolbars.draw) {
+                    drawControl._toolbars.draw._modes.polyline.handler.enable();
                 }
             });
         }
         
-        // Botão de polígono
+        // Conectar botão de polígono
         const polygonBtn = document.querySelector('.leaflet-draw-draw-polygon');
         if (polygonBtn) {
             polygonBtn.addEventListener('click', function(e) {
                 e.preventDefault();
-                // Simular clique no botão nativo do Leaflet
-                const nativePolygonBtn = document.querySelector('.leaflet-draw-toolbar-top .leaflet-draw-draw-polygon');
-                if (nativePolygonBtn) {
-                    nativePolygonBtn.click();
+                // Ativar modo de desenho de polígono
+                const drawControl = map._layers[Object.keys(map._layers).find(key => map._layers[key]._drawing)];
+                if (drawControl && drawControl._toolbars && drawControl._toolbars.draw) {
+                    drawControl._toolbars.draw._modes.polygon.handler.enable();
                 }
             });
         }
         
-        // Botão de marcador
+        // Conectar botão de marcador
         const markerBtn = document.querySelector('.leaflet-draw-draw-marker');
         if (markerBtn) {
             markerBtn.addEventListener('click', function(e) {
                 e.preventDefault();
-                // Simular clique no botão nativo do Leaflet
-                const nativeMarkerBtn = document.querySelector('.leaflet-draw-toolbar-top .leaflet-draw-draw-marker');
-                if (nativeMarkerBtn) {
-                    nativeMarkerBtn.click();
+                // Ativar modo de desenho de marcador
+                const drawControl = map._layers[Object.keys(map._layers).find(key => map._layers[key]._drawing)];
+                if (drawControl && drawControl._toolbars && drawControl._toolbars.draw) {
+                    drawControl._toolbars.draw._modes.marker.handler.enable();
                 }
             });
         }
-    }, 100);
+    }, 500);
 }
