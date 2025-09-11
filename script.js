@@ -4,6 +4,7 @@
 let map;
 let drawnItems;
 let mapLayers = {};
+let currentWork = null;
 
 // Coordenadas de Maricá, RJ
 const MARICA_CENTER = CONFIG.MAP_CENTER;
@@ -97,7 +98,9 @@ function initializeMap() {
         // Adicionar à camada de desenhos
         drawnItems.addLayer(layer);
         
-        showToast('Obra criada!', 'success');
+        // Mostrar modal para preencher informações
+        currentWork = layer;
+        showWorkModal();
     });
 
     // Evento de edição
@@ -123,6 +126,18 @@ function initializeEventListeners() {
         const layer = e.target.value;
         changeMapLayer(layer);
     });
+    
+    // Botões KMZ
+    document.getElementById('importBtn').addEventListener('click', importKMZ);
+    document.getElementById('exportBtn').addEventListener('click', exportToKMZ);
+    
+    // Modal
+    document.getElementById('closeModal').addEventListener('click', hideWorkModal);
+    document.getElementById('cancelWork').addEventListener('click', hideWorkModal);
+    document.getElementById('saveWork').addEventListener('click', saveWorkInfo);
+    
+    // Input de arquivo
+    document.getElementById('fileInput').addEventListener('change', handleFileImport);
 }
 
 // Mudar camada do mapa
@@ -148,6 +163,275 @@ function showToast(message, type = 'success') {
     setTimeout(() => {
         toast.classList.remove('show');
     }, 3000);
+}
+
+// Mostrar modal de obra
+function showWorkModal() {
+    document.getElementById('workModal').classList.add('show');
+}
+
+// Esconder modal de obra
+function hideWorkModal() {
+    document.getElementById('workModal').classList.remove('show');
+    currentWork = null;
+}
+
+// Salvar informações da obra
+function saveWorkInfo() {
+    if (!currentWork) return;
+    
+    const workNumber = document.getElementById('workNumber').value;
+    const workProduct = document.getElementById('workProduct').value;
+    const workMeasure = document.getElementById('workMeasure').value;
+    const workObservation = document.getElementById('workObservation').value;
+    
+    if (!workNumber || !workProduct || !workMeasure) {
+        showToast('Preencha todos os campos obrigatórios!', 'error');
+        return;
+    }
+    
+    // Atualizar propriedades da obra
+    currentWork.workNumber = workNumber;
+    currentWork.workProduct = workProduct;
+    currentWork.workMeasure = workMeasure;
+    currentWork.workObservation = workObservation;
+    currentWork.workName = `OS ${workNumber} - ${workProduct}`;
+    
+    hideWorkModal();
+    showToast('Obra salva com sucesso!', 'success');
+}
+
+// Importar KMZ
+function importKMZ() {
+    document.getElementById('fileInput').click();
+}
+
+// Manipular importação de arquivo
+async function handleFileImport(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+    
+    try {
+        const zip = new JSZip();
+        const zipContent = await zip.loadAsync(file);
+        
+        const kmlFile = zipContent.file('doc.kml');
+        if (!kmlFile) {
+            throw new Error('Arquivo KMZ inválido: doc.kml não encontrado');
+        }
+        
+        const kmlContent = await kmlFile.async('text');
+        const kmlData = await parseKML(kmlContent);
+        
+        // Limpar obras existentes
+        drawnItems.clearLayers();
+        
+        // Adicionar obras importadas
+        kmlData.forEach(workData => {
+            const work = createWorkFromKMLData(workData);
+            if (work) {
+                drawnItems.addLayer(work);
+            }
+        });
+        
+        showToast(`${kmlData.length} obras importadas com sucesso!`, 'success');
+        
+    } catch (error) {
+        console.error('Erro ao importar KMZ:', error);
+        showToast('Erro ao importar KMZ: ' + error.message, 'error');
+    } finally {
+        event.target.value = '';
+    }
+}
+
+// Exportar para KMZ
+async function exportToKMZ() {
+    const layers = drawnItems.getLayers();
+    if (layers.length === 0) {
+        showToast('Nenhuma obra para exportar!', 'warning');
+        return;
+    }
+    
+    try {
+        const kmlContent = generateKML();
+        const zip = new JSZip();
+        
+        zip.file('doc.kml', kmlContent);
+        
+        const blob = await zip.generateAsync({ type: 'blob' });
+        
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `obras_${new Date().toISOString().split('T')[0]}.kmz`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+        
+        showToast('KMZ exportado com sucesso!', 'success');
+    } catch (error) {
+        console.error('Erro ao exportar KMZ:', error);
+        showToast('Erro ao exportar KMZ: ' + error.message, 'error');
+    }
+}
+
+// Gerar conteúdo KML
+function generateKML() {
+    const layers = drawnItems.getLayers();
+    const kml = `<?xml version="1.0" encoding="UTF-8"?>
+<kml xmlns="http://www.opengis.net/kml/2.2">
+    <Document>
+        <name>Obras</name>
+        <description>Sistema de Controle de Obras</description>
+        ${layers.map(work => generateKMLPlacemark(work)).join('')}
+    </Document>
+</kml>`;
+    
+    return kml;
+}
+
+// Gerar placemark KML para uma obra
+function generateKMLPlacemark(work) {
+    let coordinates = '';
+    let geometry = '';
+    
+    if (work.workType === 'marker') {
+        const pos = work.getLatLng();
+        coordinates = `${pos.lng},${pos.lat},0`;
+        geometry = `<Point><coordinates>${coordinates}</coordinates></Point>`;
+    } else if (work.workType === 'polygon') {
+        const latLngs = work.getLatLngs()[0];
+        coordinates = latLngs.map(latLng => `${latLng.lng},${latLng.lat},0`).join(' ');
+        geometry = `<Polygon><outerBoundaryIs><LinearRing><coordinates>${coordinates}</coordinates></LinearRing></outerBoundaryIs></Polygon>`;
+    } else if (work.workType === 'polyline') {
+        const latLngs = work.getLatLngs();
+        coordinates = latLngs.map(latLng => `${latLng.lng},${latLng.lat},0`).join(' ');
+        geometry = `<LineString><coordinates>${coordinates}</coordinates></LineString>`;
+    }
+    
+    return `
+        <Placemark>
+            <name>${work.workName || 'Obra sem nome'}</name>
+            <description>
+                <![CDATA[
+                    <b>Número da OS:</b> ${work.workNumber || 'Não informado'}<br/>
+                    <b>Produto:</b> ${work.workProduct || 'Não informado'}<br/>
+                    <b>Medida:</b> ${work.workMeasure || 'Não informado'}<br/>
+                    <b>Observação:</b> ${work.workObservation || 'Sem observação'}
+                ]]>
+            </description>
+            <Style>
+                <LineStyle>
+                    <color>ff6d28d9</color>
+                    <width>2</width>
+                </LineStyle>
+                <PolyStyle>
+                    <color>806d28d9</color>
+                </PolyStyle>
+            </Style>
+            ${geometry}
+        </Placemark>`;
+}
+
+// Parsear KML
+async function parseKML(kmlContent) {
+    return new Promise((resolve, reject) => {
+        const parser = new xml2js.Parser();
+        parser.parseString(kmlContent, (err, result) => {
+            if (err) {
+                reject(err);
+                return;
+            }
+            
+            try {
+                const placemarks = result.kml.Document[0].Placemark || [];
+                const works = placemarks.map(placemark => {
+                    const name = placemark.name ? placemark.name[0] : 'Obra sem nome';
+                    const description = placemark.description ? placemark.description[0] : '';
+                    const geometry = placemark.Point || placemark.Polygon || placemark.LineString;
+                    
+                    let workData = {
+                        name: name,
+                        description: description,
+                        workNumber: '',
+                        workProduct: '',
+                        workMeasure: '',
+                        workObservation: ''
+                    };
+                    
+                    if (placemark.Point) {
+                        workData.workType = 'marker';
+                        const coords = placemark.Point[0].coordinates[0].split(',');
+                        workData.position = {
+                            lat: parseFloat(coords[1]),
+                            lng: parseFloat(coords[0])
+                        };
+                    } else if (placemark.Polygon) {
+                        workData.workType = 'polygon';
+                        const coords = placemark.Polygon[0].outerBoundaryIs[0].LinearRing[0].coordinates[0];
+                        workData.paths = coords.split(' ').map(coord => {
+                            const parts = coord.split(',');
+                            return {
+                                lat: parseFloat(parts[1]),
+                                lng: parseFloat(parts[0])
+                            };
+                        });
+                    } else if (placemark.LineString) {
+                        workData.workType = 'polyline';
+                        const coords = placemark.LineString[0].coordinates[0];
+                        workData.path = coords.split(' ').map(coord => {
+                            const parts = coord.split(',');
+                            return {
+                                lat: parseFloat(parts[1]),
+                                lng: parseFloat(parts[0])
+                            };
+                        });
+                    }
+                    
+                    return workData;
+                });
+                
+                resolve(works);
+            } catch (error) {
+                reject(error);
+            }
+        });
+    });
+}
+
+// Criar obra a partir dos dados KML
+function createWorkFromKMLData(workData) {
+    try {
+        let work;
+        
+        if (workData.workType === 'marker') {
+            work = L.marker([workData.position.lat, workData.position.lng]);
+        } else if (workData.workType === 'polygon') {
+            work = L.polygon(workData.paths);
+        } else if (workData.workType === 'polyline') {
+            work = L.polyline(workData.path);
+        }
+        
+        if (work) {
+            work.workId = generateWorkId();
+            work.workName = workData.name;
+            work.workNumber = workData.workNumber;
+            work.workProduct = workData.workProduct;
+            work.workMeasure = workData.workMeasure;
+            work.workObservation = workData.workObservation;
+            work.workDescription = workData.description;
+            work.workStatus = 'planejamento';
+            work.workType = workData.workType;
+            work.workDate = new Date().toISOString().split('T')[0];
+            work.isSelected = false;
+        }
+        
+        return work;
+    } catch (error) {
+        console.error('Erro ao criar obra a partir do KML:', error);
+        return null;
+    }
 }
 
 // Gerar ID único para obra
