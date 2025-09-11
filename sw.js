@@ -166,3 +166,22 @@ self.addEventListener('message', function(event) {
         self.skipWaiting();
     }
 });
+
+// Forçar atualização quando o Service Worker for instalado
+self.addEventListener('install', function(event) {
+    console.log('Service Worker: Instalando nova versão...');
+    event.waitUntil(
+        caches.open(CACHE_NAME)
+            .then(function(cache) {
+                console.log('Service Worker: Cache aberto');
+                return cache.addAll(urlsToCache);
+            })
+            .then(function() {
+                console.log('Service Worker: Forçando ativação...');
+                return self.skipWaiting();
+            })
+            .catch(function(error) {
+                console.log('Service Worker: Erro ao fazer cache:', error);
+            })
+    );
+});
