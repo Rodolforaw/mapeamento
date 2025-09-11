@@ -1,17 +1,19 @@
-const CACHE_NAME = 'controle-obra-v1.0.0';
+const CACHE_NAME = 'controle-obra-v2.0.0';
 const urlsToCache = [
     './',
     './index.html',
     './styles.css',
     './app.js',
     './manifest.json',
+    './supabase-config.js',
     'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css',
     'https://unpkg.com/leaflet-draw@1.0.4/dist/leaflet.draw.css',
     'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js',
     'https://unpkg.com/leaflet-draw@1.0.4/dist/leaflet.draw.js',
     'https://unpkg.com/jszip@3.10.1/dist/jszip.min.js',
     'https://unpkg.com/file-saver@2.0.5/dist/FileSaver.min.js',
-    'https://unpkg.com/xlsx@0.18.5/dist/xlsx.full.min.js'
+    'https://unpkg.com/xlsx@0.18.5/dist/xlsx.full.min.js',
+    'https://unpkg.com/@supabase/supabase-js@2'
 ];
 
 // Instalar Service Worker
@@ -42,6 +44,10 @@ self.addEventListener('activate', function(event) {
                     }
                 })
             );
+        }).then(function() {
+            // Forçar atualização imediata
+            console.log('Service Worker: Forçando atualização...');
+            return self.clients.claim();
         })
     );
 });
@@ -50,6 +56,13 @@ self.addEventListener('activate', function(event) {
 self.addEventListener('fetch', function(event) {
     // Ignorar requisições de chrome-extension e outras não HTTP
     if (!event.request.url.startsWith('http')) {
+        return;
+    }
+    
+    // Ignorar requisições de ícones que podem não existir
+    if (event.request.url.includes('icon-') || 
+        event.request.url.includes('.svg') ||
+        event.request.url.includes('favicon')) {
         return;
     }
     
@@ -85,11 +98,14 @@ self.addEventListener('fetch', function(event) {
                             
                             return response;
                         })
-                        .catch(function() {
+                        .catch(function(error) {
+                            console.log('Service Worker: Erro ao buscar recurso:', event.request.url, error);
                             // Se falhar, retorna página offline se for HTML
                             if (event.request.destination === 'document') {
                                 return caches.match('./index.html');
                             }
+                            // Para outros recursos, retorna uma resposta vazia
+                            return new Response('', { status: 404, statusText: 'Not Found' });
                         });
                 })
         );
