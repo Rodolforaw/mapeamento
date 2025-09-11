@@ -48,6 +48,77 @@ async function waitForSupabase(maxAttempts = 10, delay = 500) {
     return false;
 }
 
+// Tratamento global de erros para capturar erros 403 e outros
+window.addEventListener('unhandledrejection', function(event) {
+    console.warn('⚠️ Erro não tratado detectado:', event.reason);
+    
+    // Verificar se é erro 403 do Supabase
+    if (event.reason && event.reason.code === 403) {
+        console.warn('🔒 Erro 403: Possível problema de permissões no Supabase');
+        console.warn('💡 Verifique as políticas RLS (Row Level Security) no Supabase');
+        
+        // Mostrar notificação para o usuário
+        if (typeof showNotification === 'function') {
+            showNotification('⚠️ Erro de permissão detectado. Verifique a configuração do Supabase.', 'warning');
+        }
+        
+        // Prevenir que o erro apareça no console como "Uncaught"
+        event.preventDefault();
+    } else if (event.reason && event.reason.httpStatus === 200 && event.reason.code === 403) {
+        // Erro específico do Supabase com status 200 mas código 403
+        console.warn('🔒 Erro de autorização Supabase detectado');
+        event.preventDefault();
+    }
+});
+
+// Tratamento de erros gerais
+window.addEventListener('error', function(event) {
+    console.warn('⚠️ Erro JavaScript detectado:', event.error);
+});
+
+// Função para diagnosticar problemas de conectividade
+async function diagnoseSupabaseConnection() {
+    console.log('🔍 Iniciando diagnóstico de conectividade com Supabase...');
+    
+    try {
+        if (!window.supabaseConfig || !window.supabaseConfig.supabaseClient) {
+            console.error('❌ Supabase não inicializado');
+            return false;
+        }
+        
+        // Testar conexão básica
+        const { data, error } = await window.supabaseConfig.supabaseClient
+            .from('markings')
+            .select('count', { count: 'exact', head: true });
+        
+        if (error) {
+            console.error('❌ Erro na conexão com Supabase:', error);
+            
+            if (error.code === 403) {
+                console.error('🔒 Erro 403: Problema de permissões');
+                console.error('💡 Verifique as políticas RLS (Row Level Security) no Supabase');
+                console.error('💡 Certifique-se de que a tabela "markings" permite operações anônimas');
+            } else if (error.code === 404) {
+                console.error('🔍 Erro 404: Tabela não encontrada');
+                console.error('💡 Verifique se a tabela "markings" existe no Supabase');
+            } else if (error.code === 500) {
+                console.error('🔧 Erro 500: Problema interno do servidor');
+                console.error('💡 Verifique os logs do Supabase');
+            }
+            
+            return false;
+        }
+        
+        console.log('✅ Conexão com Supabase funcionando');
+        console.log(`📊 Total de marcações no banco: ${data?.length || 0}`);
+        return true;
+        
+    } catch (error) {
+        console.error('❌ Erro no diagnóstico:', error);
+        return false;
+    }
+}
+
 // Controlar sincronização para evitar loops
 function canSync() {
     const now = Date.now();
@@ -450,8 +521,15 @@ document.addEventListener('DOMContentLoaded', function() {
     // Aguardar inicialização do Supabase antes de sincronizar
     setTimeout(async () => {
         try {
+            // Executar diagnóstico primeiro
+            const isConnected = await diagnoseSupabaseConnection();
+            
+            if (isConnected) {
             await syncCrossContextData();
             console.log('✅ Sincronização inicial concluída');
+            } else {
+                console.warn('⚠️ Problemas de conectividade detectados, continuando em modo offline');
+            }
         } catch (error) {
             console.error('❌ Erro na sincronização inicial:', error);
         }
@@ -1461,8 +1539,8 @@ function parseKML(kmlContent) {
                     localStorage.setItem('controle_obra_markings', JSON.stringify(existingMarkings));
                     
                     drawnItems.addLayer(layer);
-                    importedCount++;
-                }
+                        importedCount++;
+                    }
             } catch (error) {
                 console.error('Erro ao processar marcação individual:', error);
             }
@@ -1653,9 +1731,28 @@ function updateConnectionStatus() {
 
 // Salvar marcação (offline ou online)
 function saveMarking(layer, layerType) {
+    // Extrair dados específicos do tipo de camada
+    let coordinates = null;
+    let radius = null;
+    
+    if (layer instanceof L.Circle) {
+        const center = layer.getLatLng();
+        coordinates = { lat: center.lat, lng: center.lng };
+        radius = layer.getRadius();
+    } else if (layer instanceof L.Marker) {
+        const latlng = layer.getLatLng();
+        coordinates = { lat: latlng.lat, lng: latlng.lng };
+    } else if (layer instanceof L.Polyline) {
+        coordinates = layer.getLatLngs().map(latlng => ({ lat: latlng.lat, lng: latlng.lng }));
+    } else if (layer instanceof L.Polygon || layer instanceof L.Rectangle) {
+        coordinates = layer.getLatLngs()[0].map(latlng => ({ lat: latlng.lat, lng: latlng.lng }));
+    }
+    
     const markingData = {
         id: generateId(),
         type: layerType,
+        coordinates: coordinates,
+        radius: radius, // Preservar raio para círculos
         data: layerToGeoJSON(layer),
         timestamp: new Date().toISOString(),
         action: 'create',
@@ -1667,6 +1764,8 @@ function saveMarking(layer, layerType) {
     
     // Adicionar ID à camada para referência futura
     layer._markingId = markingData.id;
+    
+    console.log(`💾 Salvando marcação ${markingData.id} do tipo ${layerType}:`, markingData);
     
     if (isOnline) {
         // Salvar diretamente se online
@@ -1905,14 +2004,15 @@ function syncNewMarkings() {
             if (marking.action !== 'delete' && !existingIds.has(marking.id) && !isLocallyDeleted) {
                 let layer = null;
                 
-                // Preservar a marcação original sem conversões desnecessárias
+                // Priorizar dados preservados da camada para manter formato original
                 if (marking.layerData) {
-                    // Se já tem dados da camada preservados, usar diretamente
+                    console.log(`🔄 Recriando marcação ${marking.id} do tipo ${marking.type} com dados preservados`);
                     layer = recreateLayerFromData(marking.layerData, marking.type);
                 } else if (marking.data) {
-                    // Formato antigo com propriedade data
+                    console.log(`🔄 Recriando marcação ${marking.id} do tipo ${marking.type} com GeoJSON`);
                     layer = geoJSONToLayer(marking.data, marking.type);
                 } else {
+                    console.log(`🔄 Recriando marcação ${marking.id} do tipo ${marking.type} com conversão`);
                     // Formato novo - converter para GeoJSON preservando propriedades visuais
                     const geoJSON = convertMarkingToGeoJSON(marking);
                     if (geoJSON) {
@@ -1922,12 +2022,25 @@ function syncNewMarkings() {
                 
                 if (layer) {
                     layer._markingId = marking.id;
+                    
                     // Preservar propriedades visuais originais
                     if (marking.visualProperties) {
                         applyVisualProperties(layer, marking.visualProperties);
                     }
+                    
+                    // Adicionar popup se não tiver
+                    if (!layer.getPopup()) {
+                        const popupContent = marking.properties?.name || 
+                                           marking.properties?.description || 
+                                           `Marcação ${marking.type}`;
+                        layer.bindPopup(popupContent);
+                    }
+                    
                     drawnItems.addLayer(layer);
                     newMarkingsCount++;
+                    console.log(`✅ Marcação ${marking.id} (${marking.type}) adicionada ao mapa`);
+                } else {
+                    console.warn(`⚠️ Falha ao recriar marcação ${marking.id} do tipo ${marking.type}`);
                 }
             }
         });
@@ -1952,10 +2065,16 @@ async function autoSyncWithSupabase() {
         
         // Salvar dados locais no Supabase
         if (localMarkings.length > 0) {
+            try {
             await window.supabaseConfig.saveMarkings(localMarkings);
+            } catch (error) {
+                console.warn('⚠️ Erro ao salvar marcações no Supabase:', error);
+                // Continuar mesmo com erro de salvamento
+            }
         }
         
         // Carregar dados atualizados do Supabase
+        try {
         const result = await window.supabaseConfig.loadMarkings();
         if (result.success && result.markings.length > 0) {
             // Fazer merge com dados locais
@@ -1973,11 +2092,19 @@ async function autoSyncWithSupabase() {
                 
                 console.log('✅ Dados sincronizados com Supabase');
             }
+            }
+        } catch (error) {
+            console.warn('⚠️ Erro ao carregar marcações do Supabase:', error);
+            // Continuar mesmo com erro de carregamento
         }
         
         // Carregar localizações dos dispositivos se estiver ativo
         if (isTrackingDevices) {
+            try {
             await loadDeviceLocations();
+            } catch (error) {
+                console.warn('⚠️ Erro ao carregar localizações dos dispositivos:', error);
+            }
         }
         
     } catch (error) {
@@ -2027,7 +2154,8 @@ function convertMarkingToGeoJSON(marking) {
         } else if (marking.type === 'circle') {
             geoJSON.type = 'Point';
             geoJSON.coordinates = [marking.coordinates.lng, marking.coordinates.lat];
-            geoJSON.properties.radius = marking.radius;
+            geoJSON.properties.radius = marking.radius || marking.properties?.radius;
+            geoJSON.properties.isCircle = true; // Marcar como círculo
         }
         
         return geoJSON;
@@ -2043,7 +2171,12 @@ function recreateLayerFromData(layerData, type) {
         if (type === 'marker' || type === 'point') {
             return L.marker([layerData.lat, layerData.lng], layerData.options || {});
         } else if (type === 'circle') {
-            return L.circle([layerData.lat, layerData.lng], layerData.options || {});
+            // Garantir que o raio seja preservado
+            const options = { ...layerData.options };
+            if (layerData.radius) {
+                options.radius = layerData.radius;
+            }
+            return L.circle([layerData.lat, layerData.lng], options);
         } else if (type === 'polyline') {
             return L.polyline(layerData.latlngs, layerData.options || {});
         } else if (type === 'polygon') {
@@ -2167,10 +2300,11 @@ function geoJSONToLayer(geoJSON, type) {
         if (geoJSON.type === 'Point') {
             const [lng, lat] = geoJSON.coordinates;
             
-            if (geoJSON.properties && geoJSON.properties.radius) {
+            if (geoJSON.properties && (geoJSON.properties.radius || geoJSON.properties.isCircle)) {
                 // É um círculo
+                const radius = geoJSON.properties.radius || 100; // Raio padrão se não especificado
                 const layer = L.circle([lat, lng], {
-                    radius: geoJSON.properties.radius,
+                    radius: radius,
                     color: colorScheme.color,
                     weight: 3,
                     fillOpacity: 0.3
@@ -2178,6 +2312,7 @@ function geoJSONToLayer(geoJSON, type) {
                 if (geoJSON.properties.popupContent) {
                     layer.bindPopup(geoJSON.properties.popupContent);
                 }
+                console.log(`🔵 Criando círculo com raio ${radius} em [${lat}, ${lng}]`);
                 return layer;
             } else {
                 // É um marcador
