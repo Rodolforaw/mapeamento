@@ -419,33 +419,28 @@ let worksModal = null;
 // Inicialização do aplicativo
 document.addEventListener('DOMContentLoaded', function() {
     // Debug: Verificar contexto de execução
-    console.log('🔍 Debug - Contexto de execução:');
-    console.log('- URL atual:', window.location.href);
-    console.log('- Origem:', window.location.origin);
-    console.log('- Protocolo:', window.location.protocol);
-    console.log('- Host:', window.location.host);
+    // Debug removido para limpeza do console
     const isPWA = window.matchMedia('(display-mode: standalone)').matches || 
                   window.navigator.standalone === true || 
                   document.referrer.includes('android-app://');
-    console.log('- PWA mode:', isPWA);
-    console.log('- Service Worker ativo:', 'serviceWorker' in navigator);
+    // Logs de debug removidos
     
     // Adicionar indicador visual do contexto
     if (isPWA) {
         document.body.classList.add('pwa-mode');
-        console.log('🔥 Executando em modo PWA');
+        // Modo PWA ativo
     } else {
         document.body.classList.add('desktop-mode');
-        console.log('💻 Executando em modo Desktop');
+        // Modo Desktop ativo
     }
     
     // Verificar localStorage
     const markings = localStorage.getItem('controle_obra_markings');
-    console.log('- Marcações no localStorage:', markings ? JSON.parse(markings).length : 0);
+    // Logs de debug removidos
     
     // Verificar todas as chaves do localStorage relacionadas ao app
     const allKeys = Object.keys(localStorage).filter(key => key.includes('controle_obra'));
-    console.log('- Chaves do localStorage:', allKeys);
+    // Logs de debug removidos
     
     // Sincronização inicial removida - apenas manual via botão
     
