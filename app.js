@@ -1812,17 +1812,59 @@ function saveMarking(layer, layerType) {
 
 // Atualizar marcação existente
 function updateMarking(layer) {
+    // Extrair dados específicos do tipo de camada
+    let coordinates = null;
+    let radius = null;
+    let bounds = null;
+    
+    if (layer instanceof L.Circle) {
+        const center = layer.getLatLng();
+        coordinates = { lat: center.lat, lng: center.lng };
+        radius = layer.getRadius();
+        console.log(`🔵 Atualizando círculo: centro [${center.lat}, ${center.lng}], raio ${radius}`);
+    } else if (layer instanceof L.Marker) {
+        const latlng = layer.getLatLng();
+        coordinates = { lat: latlng.lat, lng: latlng.lng };
+        console.log(`📍 Atualizando marcador: [${latlng.lat}, ${latlng.lng}]`);
+    } else if (layer instanceof L.Polyline) {
+        coordinates = layer.getLatLngs().map(latlng => ({ lat: latlng.lat, lng: latlng.lng }));
+        console.log(`📏 Atualizando linha com ${coordinates.length} pontos`);
+    } else if (layer instanceof L.Polygon) {
+        coordinates = layer.getLatLngs()[0].map(latlng => ({ lat: latlng.lat, lng: latlng.lng }));
+        console.log(`🔷 Atualizando polígono com ${coordinates.length} pontos`);
+    } else if (layer instanceof L.Rectangle) {
+        const rectBounds = layer.getBounds();
+        bounds = {
+            southWest: { lat: rectBounds.getSouthWest().lat, lng: rectBounds.getSouthWest().lng },
+            northEast: { lat: rectBounds.getNorthEast().lat, lng: rectBounds.getNorthEast().lng }
+        };
+        coordinates = [
+            { lat: bounds.southWest.lat, lng: bounds.southWest.lng },
+            { lat: bounds.northEast.lat, lng: bounds.northEast.lng }
+        ];
+        console.log(`⬜ Atualizando retângulo: ${rectBounds.toString()}`);
+    }
+    
     const markingData = {
         id: layer._markingId || generateId(),
         type: getLayerType(layer).toLowerCase(),
+        coordinates: coordinates,
+        radius: radius, // Preservar raio para círculos
+        bounds: bounds, // Preservar bounds para retângulos
         data: layerToGeoJSON(layer),
         timestamp: new Date().toISOString(),
-        action: 'update'
+        action: 'update',
+        // Preservar dados da camada para recriação fiel
+        layerData: extractLayerData(layer),
+        // Preservar propriedades visuais
+        visualProperties: extractVisualProperties(layer)
     };
     
     if (!layer._markingId) {
         layer._markingId = markingData.id;
     }
+    
+    console.log(`💾 Atualizando marcação ${markingData.id} do tipo ${markingData.type}:`, markingData);
     
     if (isOnline) {
         saveToLocalStorage(markingData);
@@ -2161,6 +2203,14 @@ function debugMarkings() {
         console.log(`   LayerData.bounds: ${marking.layerData?.bounds ? 'Sim' : 'Não'}`);
         console.log('---');
     });
+}
+
+// Função para limpar marcações antigas e forçar migração
+function clearOldMarkings() {
+    console.log('🗑️ Limpando marcações antigas...');
+    localStorage.removeItem('controle_obra_markings');
+    console.log('✅ Marcações antigas removidas');
+    showNotification('Marcações antigas removidas. Desenhe novas marcações para testar.', 'info');
 }
 
 // Função para sincronização automática com Supabase
@@ -2976,20 +3026,74 @@ function getLayerTypeName(type) {
 
 // Salvar marcação com dados
 function saveMarkingWithData(layer, data) {
+    // Extrair dados específicos do tipo de camada
+    let coordinates = null;
+    let radius = null;
+    let bounds = null;
+    
+    if (layer instanceof L.Circle) {
+        const center = layer.getLatLng();
+        coordinates = { lat: center.lat, lng: center.lng };
+        radius = layer.getRadius();
+        console.log(`🔵 Salvando círculo: centro [${center.lat}, ${center.lng}], raio ${radius}`);
+    } else if (layer instanceof L.Marker) {
+        const latlng = layer.getLatLng();
+        coordinates = { lat: latlng.lat, lng: latlng.lng };
+        console.log(`📍 Salvando marcador: [${latlng.lat}, ${latlng.lng}]`);
+    } else if (layer instanceof L.Polyline) {
+        coordinates = layer.getLatLngs().map(latlng => ({ lat: latlng.lat, lng: latlng.lng }));
+        console.log(`📏 Salvando linha com ${coordinates.length} pontos`);
+    } else if (layer instanceof L.Polygon) {
+        coordinates = layer.getLatLngs()[0].map(latlng => ({ lat: latlng.lat, lng: latlng.lng }));
+        console.log(`🔷 Salvando polígono com ${coordinates.length} pontos`);
+    } else if (layer instanceof L.Rectangle) {
+        const rectBounds = layer.getBounds();
+        bounds = {
+            southWest: { lat: rectBounds.getSouthWest().lat, lng: rectBounds.getSouthWest().lng },
+            northEast: { lat: rectBounds.getNorthEast().lat, lng: rectBounds.getNorthEast().lng }
+        };
+        coordinates = [
+            { lat: bounds.southWest.lat, lng: bounds.southWest.lng },
+            { lat: bounds.northEast.lat, lng: bounds.northEast.lng }
+        ];
+        console.log(`⬜ Salvando retângulo: ${rectBounds.toString()}`);
+    }
+    
     const markingData = {
         id: generateId(),
         ...data,
-        geometry: layerToGeoJSON(layer),
-        coordinates: getLayerCoordinates(layer),
+        type: getLayerType(layer),
+        coordinates: coordinates,
+        radius: radius, // Preservar raio para círculos
+        bounds: bounds, // Preservar bounds para retângulos
+        data: layerToGeoJSON(layer),
         timestamp: new Date().toISOString(),
-        action: 'create'
+        action: 'create',
+        // Preservar dados da camada para recriação fiel
+        layerData: extractLayerData(layer),
+        // Preservar propriedades visuais
+        visualProperties: extractVisualProperties(layer)
     };
     
     // Adicionar ID à camada para referência futura
     layer._markingId = markingData.id;
     
+    console.log(`💾 Salvando marcação ${markingData.id} do tipo ${markingData.type}:`, markingData);
+    
     if (isOnline) {
         saveToLocalStorage(markingData);
+        
+        // Sincronizar imediatamente com Supabase se disponível
+        if (window.supabaseConfig && window.supabaseConfig.saveMarkings) {
+            setTimeout(async () => {
+                try {
+                    await window.supabaseConfig.saveMarkings([markingData]);
+                    console.log(`✅ Marcação ${markingData.id} sincronizada com Supabase`);
+                } catch (error) {
+                    console.warn(`⚠️ Erro ao sincronizar marcação ${markingData.id}:`, error);
+                }
+            }, 1000);
+        }
     } else {
         offlineQueue.push(markingData);
         saveOfflineQueue();
@@ -3043,6 +3147,11 @@ function setupGeolocationEventListeners() {
     const debugMarkingsBtn = document.getElementById('debug-markings');
     if (debugMarkingsBtn) {
         debugMarkingsBtn.addEventListener('click', debugMarkings);
+    }
+    
+    const clearOldMarkingsBtn = document.getElementById('clear-old-markings');
+    if (clearOldMarkingsBtn) {
+        clearOldMarkingsBtn.addEventListener('click', clearOldMarkings);
     }
     
     const downloadOffline = document.getElementById('download-offline-pwa');
