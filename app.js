@@ -77,6 +77,7 @@ async function syncCrossContextData() {
                 } else {
                     console.log('ℹ️ Nenhuma marcação encontrada no Supabase');
                     // Salvar dados locais no Supabase se houver
+                    const localMarkings = JSON.parse(localStorage.getItem('controle_obra_markings') || '[]');
                     if (localMarkings.length > 0) {
                         await window.supabaseConfig.saveMarkings(localMarkings);
                         showNotification('📤 Dados locais enviados para o Supabase', 'info');
