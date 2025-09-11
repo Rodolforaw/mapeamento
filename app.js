@@ -99,29 +99,8 @@ function setupEventListeners() {
 
 // Salvar marcação
 function saveMarking(layer, type) {
-    const marking = {
-        id: generateId(),
-        type: type,
-        coordinates: getLayerCoordinates(layer),
-        properties: {
-            name: `Marcação ${type}`,
-            timestamp: Date.now()
-        },
-        timestamp: Date.now()
-    };
-    
-    layer._markingId = marking.id;
-    drawnItems.addLayer(layer);
-    
-    // Salvar no localStorage
-    saveToLocalStorage(marking);
-    
-    // Sincronizar se online
-    if (isOnline) {
-        syncToSupabase(marking);
-    }
-    
-    showNotification('Marcação salva!', 'success');
+    // Mostrar popup para informações da obra
+    showWorkInfoPopup(layer, type);
 }
 
 // Atualizar marcação
@@ -270,14 +249,8 @@ function createLayerFromMarking(marking) {
 
 // Sincronizar com Supabase
 async function syncToSupabase(marking) {
-    if (!window.supabaseConfig) return;
-    
-    try {
-        await window.supabaseConfig.saveMarkings([marking]);
-        console.log('Marcação sincronizada com Supabase');
-    } catch (error) {
-        console.error('Erro ao sincronizar:', error);
-    }
+    // Por enquanto, apenas salvar localmente
+    console.log('Marcação salva localmente:', marking.id);
 }
 
 // Deletar do Supabase
@@ -294,34 +267,14 @@ async function deleteFromSupabase(markingId) {
 
 // Sincronizar marcações (PC)
 async function syncMarkings() {
-    if (!window.supabaseConfig) {
-        showNotification('Supabase não configurado', 'error');
-        return;
-    }
-    
     try {
         showNotification('Sincronizando...', 'info');
         
-        // Carregar do Supabase
-        const result = await window.supabaseConfig.loadMarkings();
-        if (result.success) {
-            // Limpar marcações atuais
-            drawnItems.clearLayers();
-            
-            // Carregar novas marcações
-            result.markings.forEach(marking => {
-                const layer = createLayerFromMarking(marking);
-                if (layer) {
-                    layer._markingId = marking.id;
-                    drawnItems.addLayer(layer);
-                }
-            });
-            
-            // Salvar no localStorage
-            localStorage.setItem('controle_obra_markings', JSON.stringify(result.markings));
-            
-            showNotification(`${result.markings.length} marcações sincronizadas!`, 'success');
-        }
+        // Recarregar marcações do localStorage
+        loadMarkings();
+        
+        const markings = JSON.parse(localStorage.getItem('controle_obra_markings') || '[]');
+        showNotification(`${markings.length} marcações carregadas!`, 'success');
     } catch (error) {
         console.error('Erro na sincronização:', error);
         showNotification('Erro na sincronização', 'error');
@@ -330,44 +283,12 @@ async function syncMarkings() {
 
 // Baixar dados (PWA)
 async function downloadData() {
-    if (!window.supabaseConfig) {
-        showNotification('Supabase não configurado', 'error');
-        return;
-    }
-    
-    try {
-        showNotification('Baixando dados...', 'info');
-        
-        const result = await window.supabaseConfig.loadMarkings();
-        if (result.success) {
-            localStorage.setItem('controle_obra_markings', JSON.stringify(result.markings));
-            loadMarkings();
-            showNotification('Dados baixados!', 'success');
-        }
-    } catch (error) {
-        console.error('Erro ao baixar:', error);
-        showNotification('Erro ao baixar dados', 'error');
-    }
+    showNotification('Modo offline - Dados já estão no dispositivo', 'info');
 }
 
 // Enviar dados (PWA)
 async function uploadData() {
-    if (!window.supabaseConfig) {
-        showNotification('Supabase não configurado', 'error');
-        return;
-    }
-    
-    try {
-        showNotification('Enviando dados...', 'info');
-        
-        const markings = JSON.parse(localStorage.getItem('controle_obra_markings') || '[]');
-        await window.supabaseConfig.saveMarkings(markings);
-        
-        showNotification('Dados enviados!', 'success');
-    } catch (error) {
-        console.error('Erro ao enviar:', error);
-        showNotification('Erro ao enviar dados', 'error');
-    }
+    showNotification('Modo offline - Dados salvos localmente', 'info');
 }
 
 // Atualizar status de conexão
@@ -379,9 +300,255 @@ function updateConnectionStatus() {
     }
 }
 
+// Mostrar popup de informações da obra
+function showWorkInfoPopup(layer, type) {
+    // Criar modal
+    const modal = document.createElement('div');
+    modal.className = 'work-modal';
+    modal.innerHTML = `
+        <div class="work-modal-content">
+            <div class="work-modal-header">
+                <h3>📋 Informações da Obra</h3>
+                <span class="work-modal-close">&times;</span>
+            </div>
+            <div class="work-modal-body">
+                <form id="work-form">
+                    <div class="form-group">
+                        <label for="os-number">Número da OS:</label>
+                        <input type="text" id="os-number" name="osNumber" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="product">Produto/Serviço:</label>
+                        <input type="text" id="product" name="product" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="measurement">Medida:</label>
+                        <input type="number" id="measurement" name="measurement" step="0.01" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="measurement-unit">Unidade:</label>
+                        <select id="measurement-unit" name="measurementUnit" required>
+                            <option value="m">Metros (m)</option>
+                            <option value="m²">Metros Quadrados (m²)</option>
+                            <option value="m³">Metros Cúbicos (m³)</option>
+                            <option value="un">Unidade</option>
+                            <option value="kg">Quilogramas (kg)</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="description">Descrição:</label>
+                        <textarea id="description" name="description" rows="3"></textarea>
+                    </div>
+                    <div class="form-group">
+                        <label for="worker-name">Nome do Funcionário:</label>
+                        <input type="text" id="worker-name" name="workerName" required>
+                    </div>
+                    <div class="form-actions">
+                        <button type="button" class="btn btn-danger" id="cancel-work">Cancelar</button>
+                        <button type="submit" class="btn btn-success">Salvar Marcação</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    `;
+    
+    // Adicionar estilos
+    const style = document.createElement('style');
+    style.textContent = `
+        .work-modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.5);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 10000;
+        }
+        .work-modal-content {
+            background: white;
+            border-radius: 10px;
+            width: 90%;
+            max-width: 500px;
+            max-height: 90vh;
+            overflow-y: auto;
+        }
+        .work-modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 20px;
+            border-bottom: 1px solid #ddd;
+        }
+        .work-modal-header h3 {
+            margin: 0;
+            color: #333;
+        }
+        .work-modal-close {
+            font-size: 24px;
+            cursor: pointer;
+            color: #999;
+        }
+        .work-modal-close:hover {
+            color: #333;
+        }
+        .work-modal-body {
+            padding: 20px;
+        }
+        .form-group {
+            margin-bottom: 15px;
+        }
+        .form-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+            color: #333;
+        }
+        .form-group input,
+        .form-group select,
+        .form-group textarea {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            font-size: 14px;
+        }
+        .form-group input:focus,
+        .form-group select:focus,
+        .form-group textarea:focus {
+            outline: none;
+            border-color: #007bff;
+        }
+        .form-actions {
+            display: flex;
+            gap: 10px;
+            justify-content: flex-end;
+            margin-top: 20px;
+        }
+        .btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: bold;
+        }
+        .btn-danger {
+            background: #dc3545;
+            color: white;
+        }
+        .btn-success {
+            background: #28a745;
+            color: white;
+        }
+        .btn:hover {
+            opacity: 0.9;
+        }
+    `;
+    document.head.appendChild(style);
+    
+    // Adicionar ao DOM
+    document.body.appendChild(modal);
+    
+    // Eventos
+    const form = modal.querySelector('#work-form');
+    const closeBtn = modal.querySelector('.work-modal-close');
+    const cancelBtn = modal.querySelector('#cancel-work');
+    
+    form.addEventListener('submit', function(e) {
+        e.preventDefault();
+        const formData = new FormData(form);
+        const workData = {
+            osNumber: formData.get('osNumber'),
+            product: formData.get('product'),
+            measurement: parseFloat(formData.get('measurement')),
+            measurementUnit: formData.get('measurementUnit'),
+            description: formData.get('description'),
+            workerName: formData.get('workerName')
+        };
+        
+        // Salvar marcação com dados da obra
+        saveMarkingWithWorkData(layer, type, workData);
+        
+        // Remover modal
+        document.body.removeChild(modal);
+        document.head.removeChild(style);
+    });
+    
+    closeBtn.addEventListener('click', function() {
+        // Remover layer se cancelar
+        drawnItems.removeLayer(layer);
+        document.body.removeChild(modal);
+        document.head.removeChild(style);
+    });
+    
+    cancelBtn.addEventListener('click', function() {
+        // Remover layer se cancelar
+        drawnItems.removeLayer(layer);
+        document.body.removeChild(modal);
+        document.head.removeChild(style);
+    });
+}
+
+// Salvar marcação com dados da obra
+function saveMarkingWithWorkData(layer, type, workData) {
+    const marking = {
+        id: generateId(),
+        type: type,
+        coordinates: getLayerCoordinates(layer),
+        properties: {
+            name: `${workData.product} - OS ${workData.osNumber}`,
+            osNumber: workData.osNumber,
+            product: workData.product,
+            measurement: workData.measurement,
+            measurementUnit: workData.measurementUnit,
+            description: workData.description,
+            workerName: workData.workerName,
+            timestamp: Date.now()
+        },
+        timestamp: Date.now()
+    };
+    
+    layer._markingId = marking.id;
+    drawnItems.addLayer(layer);
+    
+    // Adicionar popup à layer
+    const popupContent = `
+        <div style="min-width: 200px;">
+            <h4>📋 ${workData.product}</h4>
+            <p><strong>OS:</strong> ${workData.osNumber}</p>
+            <p><strong>Medida:</strong> ${workData.measurement} ${workData.measurementUnit}</p>
+            <p><strong>Funcionário:</strong> ${workData.workerName}</p>
+            ${workData.description ? `<p><strong>Descrição:</strong> ${workData.description}</p>` : ''}
+        </div>
+    `;
+    layer.bindPopup(popupContent);
+    
+    // Salvar no localStorage
+    saveToLocalStorage(marking);
+    
+    // Sincronizar se online
+    if (isOnline) {
+        syncToSupabase(marking);
+    }
+    
+    showNotification(`Marcação salva: ${workData.product} - OS ${workData.osNumber}`, 'success');
+    updateMarkingsCount();
+}
+
 // Mostrar notificação
 function showNotification(message, type = 'info') {
-    // Implementar sistema de notificações simples
+    const notification = document.getElementById('notification');
+    if (notification) {
+        notification.textContent = message;
+        notification.className = `notification ${type} show`;
+        
+        setTimeout(() => {
+            notification.classList.remove('show');
+        }, 3000);
+    }
     console.log(`${type.toUpperCase()}: ${message}`);
 }
 
