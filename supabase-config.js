@@ -209,7 +209,10 @@ function mergeMarkings(localMarkings, serverMarkings) {
             
             if (serverTime > localTime) {
                 console.log(`🔄 Atualizando marcação ${serverMarking.id} do servidor`);
+                console.log('🔍 Marcação local:', merged[existingIndex]);
+                console.log('🔍 Marcação do servidor:', serverMarking);
                 merged[existingIndex] = serverMarking;
+                console.log('🔍 Marcação após merge:', merged[existingIndex]);
             }
         } else {
             console.log(`➕ Adicionando nova marcação ${serverMarking.id} do servidor`);
