@@ -1,300 +1,456 @@
-<!DOCTYPE html>
-<html lang="pt-BR">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Mapa de Obras</title>
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-    <link rel="stylesheet" href="https://unpkg.com/leaflet-draw@1.0.4/dist/leaflet.draw.css" />
-    <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
+// Script super simples - apenas mapa nativo
+// SEM Google Maps - apenas Leaflet gratuito
+
+let map;
+let drawnItems;
+let mapLayers = {};
+let currentWork = null;
+
+// Coordenadas de Maricá, RJ
+const MARICA_CENTER = CONFIG.MAP_CENTER;
+
+// Inicialização
+document.addEventListener('DOMContentLoaded', function() {
+    initializeMap();
+    initializeEventListeners();
+});
+
+// Inicializar o mapa
+function initializeMap() {
+    // Criar mapa
+    map = L.map('map').setView(MARICA_CENTER, CONFIG.MAP_ZOOM);
+
+    // Criar camadas de mapa
+    mapLayers.streets = L.tileLayer(CONFIG.MAP_LAYERS.streets.url, {
+        attribution: CONFIG.MAP_LAYERS.streets.attribution,
+        maxZoom: 19
+    });
+
+    mapLayers.satellite = L.tileLayer(CONFIG.MAP_LAYERS.satellite.url, {
+        attribution: CONFIG.MAP_LAYERS.satellite.attribution,
+        maxZoom: 19
+    });
+
+    mapLayers.topo = L.tileLayer(CONFIG.MAP_LAYERS.topo.url, {
+        attribution: CONFIG.MAP_LAYERS.topo.attribution,
+        maxZoom: 19
+    });
+
+    // Adicionar camada padrão (ruas)
+    mapLayers.streets.addTo(map);
+
+    // Inicializar camada para desenhos
+    drawnItems = new L.FeatureGroup();
+    map.addLayer(drawnItems);
+
+    // Configurar controles de desenho nativos do Leaflet
+    const drawControl = new L.Control.Draw({
+        position: 'topright',
+        draw: {
+            polygon: {
+                shapeOptions: {
+                    color: CONFIG.COLORS.primary,
+                    fillColor: CONFIG.COLORS.primary,
+                    fillOpacity: 0.3
+                }
+            },
+            polyline: {
+                shapeOptions: {
+                    color: CONFIG.COLORS.primary,
+                    weight: 3
+                }
+            },
+            marker: {
+                icon: L.divIcon({
+                    className: 'custom-marker',
+                    html: `<div style="background-color: ${CONFIG.COLORS.primary}; width: 20px; height: 20px; border-radius: 50%; border: 2px solid white; box-shadow: 0 2px 4px rgba(0,0,0,0.3);"></div>`,
+                    iconSize: [20, 20],
+                    iconAnchor: [10, 10]
+                })
+            },
+            circle: false,
+            rectangle: false,
+            circlemarker: false
+        },
+        edit: {
+            featureGroup: drawnItems,
+            remove: true
         }
+    });
+
+    map.addControl(drawControl);
+
+    // Eventos de desenho
+    map.on(L.Draw.Event.CREATED, function(event) {
+        const layer = event.layer;
+        const type = event.layerType;
         
-        body {
-            font-family: Arial, sans-serif;
-            overflow: hidden;
-        }
+        // Adicionar propriedades personalizadas
+        layer.workId = generateWorkId();
+        layer.workType = type;
+        layer.workName = `Obra ${drawnItems.getLayers().length + 1}`;
+        layer.workDescription = '';
+        layer.workStatus = 'planejamento';
+        layer.workType = 'outros';
+        layer.workDate = new Date().toISOString().split('T')[0];
+        layer.isSelected = false;
+
+        // Adicionar à camada de desenhos
+        drawnItems.addLayer(layer);
         
-        #map {
-            width: 100vw;
-            height: 100vh;
-        }
-        
-        
-        
-        .layer-control {
-            position: fixed;
-            top: 20px;
-            left: 20px;
-            z-index: 1000;
-            background: white;
-            padding: 10px;
-            border-radius: 5px;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.3);
-        }
-        
-        .layer-control select {
-            padding: 5px;
-            border: 1px solid #ddd;
-            border-radius: 3px;
-            font-size: 14px;
-        }
-        
-        .kmz-controls {
-            position: fixed;
-            top: 20px;
-            right: 20px;
-            z-index: 1000;
-            display: flex;
-            gap: 5px;
-        }
-        
-        .kmz-btn {
-            width: 35px;
-            height: 35px;
-            border: none;
-            border-radius: 50%;
-            background: rgba(255, 255, 255, 0.9);
-            color: #6d28d9;
-            font-size: 14px;
-            cursor: pointer;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.2);
-            transition: all 0.2s ease;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }
-        
-        .kmz-btn:hover {
-            background: #6d28d9;
-            color: white;
-            transform: scale(1.1);
-        }
-        
-        /* Modal */
-        .modal {
-            display: none;
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: rgba(0, 0, 0, 0.5);
-            z-index: 2000;
-        }
-        
-        .modal.show {
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }
-        
-        .modal-content {
-            background: white;
-            border-radius: 10px;
-            box-shadow: 0 4px 20px rgba(0,0,0,0.3);
-            max-width: 500px;
-            width: 90%;
-            max-height: 90vh;
-            overflow-y: auto;
-        }
-        
-        .modal-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding: 20px;
-            border-bottom: 1px solid #eee;
-        }
-        
-        .modal-header h3 {
-            margin: 0;
-            color: #333;
-        }
-        
-        .close-btn {
-            background: none;
-            border: none;
-            font-size: 24px;
-            cursor: pointer;
-            color: #999;
-        }
-        
-        .close-btn:hover {
-            color: #333;
-        }
-        
-        .modal-body {
-            padding: 20px;
-        }
-        
-        .modal-footer {
-            display: flex;
-            justify-content: flex-end;
-            gap: 10px;
-            padding: 20px;
-            border-top: 1px solid #eee;
-        }
-        
-        .form-group {
-            margin-bottom: 15px;
-        }
-        
-        .form-group label {
-            display: block;
-            margin-bottom: 5px;
-            font-weight: 500;
-            color: #333;
-        }
-        
-        .form-group input,
-        .form-group textarea {
-            width: 100%;
-            padding: 10px;
-            border: 1px solid #ddd;
-            border-radius: 5px;
-            font-size: 14px;
-            box-sizing: border-box;
-        }
-        
-        .form-group input:focus,
-        .form-group textarea:focus {
-            outline: none;
-            border-color: #6d28d9;
-            box-shadow: 0 0 0 2px rgba(109, 40, 217, 0.1);
-        }
-        
-        .btn {
-            padding: 10px 20px;
-            border: none;
-            border-radius: 5px;
-            font-size: 14px;
-            cursor: pointer;
-            transition: all 0.2s ease;
-        }
-        
-        .btn-primary {
-            background: #6d28d9;
-            color: white;
-        }
-        
-        .btn-primary:hover {
-            background: #5b21b6;
-        }
-        
-        .btn-secondary {
-            background: #6b7280;
-            color: white;
-        }
-        
-        .btn-secondary:hover {
-            background: #4b5563;
-        }
-        
-        .toast {
-            position: fixed;
-            top: 80px;
-            right: 20px;
-            background: white;
-            padding: 15px;
-            border-radius: 5px;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.3);
-            z-index: 1000;
-            display: none;
-        }
-        
-        .toast.show {
-            display: block;
-        }
-        
-        .toast.success {
-            border-left: 4px solid #10b981;
-        }
-        
-        .toast.error {
-            border-left: 4px solid #ef4444;
-        }
-        
-        .toast.warning {
-            border-left: 4px solid #f59e0b;
-        }
-    </style>
-</head>
-<body>
-    <!-- Mapa -->
-    <div id="map"></div>
+        // Mostrar modal para preencher informações
+        currentWork = layer;
+        showWorkModal();
+    });
+
+    // Evento de edição
+    map.on(L.Draw.Event.EDITED, function(event) {
+        showToast('Obra editada!', 'success');
+    });
+
+    // Evento de exclusão
+    map.on(L.Draw.Event.DELETED, function(event) {
+        showToast('Obra deletada!', 'success');
+    });
+
+    // Evento de clique em obra
+    map.on('click', function(e) {
+        // Lógica de clique será implementada se necessário
+    });
+}
+
+// Inicializar event listeners
+function initializeEventListeners() {
+    // Menu hambúrguer
+    document.getElementById('menuToggle').addEventListener('click', toggleSideMenu);
+    document.getElementById('closeMenu').addEventListener('click', toggleSideMenu);
     
-    <!-- Controles de camada -->
-    <div class="layer-control">
-        <select id="layerSelect">
-            <option value="streets">Ruas</option>
-            <option value="satellite">Satélite</option>
-            <option value="topo">Topografia</option>
-        </select>
-    </div>
+    // Controle de camada
+    document.getElementById('layerSelect').addEventListener('change', function(e) {
+        const layer = e.target.value;
+        changeMapLayer(layer);
+    });
     
-    <!-- Botões discretos para KMZ -->
-    <div class="kmz-controls">
-        <button id="importBtn" class="kmz-btn" title="Importar KMZ">
-            <i class="fas fa-upload"></i>
-            </button>
-        <button id="exportBtn" class="kmz-btn" title="Exportar KMZ">
-            <i class="fas fa-download"></i>
-            </button>
-            </div>
+    // Botões KMZ
+    document.getElementById('importBtn').addEventListener('click', importKMZ);
+    document.getElementById('exportBtn').addEventListener('click', exportToKMZ);
     
+    // Modal
+    document.getElementById('closeModal').addEventListener('click', hideWorkModal);
+    document.getElementById('cancelWork').addEventListener('click', hideWorkModal);
+    document.getElementById('saveWork').addEventListener('click', saveWorkInfo);
     
+    // Input de arquivo
+    document.getElementById('fileInput').addEventListener('change', handleFileImport);
+}
+
+// Alternar menu lateral
+function toggleSideMenu() {
+    const sideMenu = document.getElementById('sideMenu');
+    sideMenu.classList.toggle('open');
+}
+
+// Mudar camada do mapa
+function changeMapLayer(layerName) {
+    // Remover todas as camadas
+    Object.values(mapLayers).forEach(layer => {
+        map.removeLayer(layer);
+    });
     
-    <!-- Toast de notificação -->
-    <div id="toast" class="toast"></div>
+    // Adicionar camada selecionada
+    if (mapLayers[layerName]) {
+        mapLayers[layerName].addTo(map);
+    }
+}
+
+
+// Mostrar toast
+function showToast(message, type = 'success') {
+    const toast = document.getElementById('toast');
+    toast.textContent = message;
+    toast.className = `toast ${type} show`;
     
-    <!-- Modal para informações da obra -->
-    <div id="workModal" class="modal">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h3>Informações da Obra</h3>
-                <button class="close-btn" id="closeModal">&times;</button>
-            </div>
-            <div class="modal-body">
-                <form id="workForm">
-                    <div class="form-group">
-                        <label for="workNumber">Número da OS:</label>
-                        <input type="text" id="workNumber" required>
-                    </div>
-                    <div class="form-group">
-                        <label for="workProduct">Produto:</label>
-                        <input type="text" id="workProduct" required>
-                    </div>
-                    <div class="form-group">
-                        <label for="workMeasure">Medida:</label>
-                        <input type="text" id="workMeasure" required>
-                    </div>
-                    <div class="form-group">
-                        <label for="workObservation">Observação:</label>
-                        <textarea id="workObservation" rows="3"></textarea>
-                    </div>
-                </form>
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" id="cancelWork">Cancelar</button>
-                <button type="button" class="btn btn-primary" id="saveWork">Salvar</button>
-            </div>
-        </div>
-    </div>
+    setTimeout(() => {
+        toast.classList.remove('show');
+    }, 3000);
+}
+
+// Mostrar modal de obra
+function showWorkModal() {
+    document.getElementById('workModal').classList.add('show');
+}
+
+// Esconder modal de obra
+function hideWorkModal() {
+    document.getElementById('workModal').classList.remove('show');
+    currentWork = null;
+}
+
+// Salvar informações da obra
+function saveWorkInfo() {
+    if (!currentWork) return;
     
-    <!-- Input para importação de arquivos -->
-    <input type="file" id="fileInput" accept=".kmz" style="display: none;">
+    const workNumber = document.getElementById('workNumber').value;
+    const workProduct = document.getElementById('workProduct').value;
+    const workMeasure = document.getElementById('workMeasure').value;
+    const workObservation = document.getElementById('workObservation').value;
     
-    <!-- Scripts -->
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-    <script src="https://unpkg.com/leaflet-draw@1.0.4/dist/leaflet.draw.js"></script>
-    <script src="https://unpkg.com/jszip@3.10.1/dist/jszip.min.js"></script>
-    <script src="https://unpkg.com/xml2js@0.6.2/lib/xml2js.min.js"></script>
-    <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
-    <script src="config.js"></script>
-    <script src="script.js"></script>
-</body>
-</html>
+    if (!workNumber || !workProduct || !workMeasure) {
+        showToast('Preencha todos os campos obrigatórios!', 'error');
+        return;
+    }
+    
+    // Atualizar propriedades da obra
+    currentWork.workNumber = workNumber;
+    currentWork.workProduct = workProduct;
+    currentWork.workMeasure = workMeasure;
+    currentWork.workObservation = workObservation;
+    currentWork.workName = `OS ${workNumber} - ${workProduct}`;
+    
+    hideWorkModal();
+    showToast('Obra salva com sucesso!', 'success');
+}
+
+// Importar KMZ
+function importKMZ() {
+    document.getElementById('fileInput').click();
+}
+
+// Manipular importação de arquivo
+async function handleFileImport(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+    
+    try {
+        const zip = new JSZip();
+        const zipContent = await zip.loadAsync(file);
+        
+        const kmlFile = zipContent.file('doc.kml');
+        if (!kmlFile) {
+            throw new Error('Arquivo KMZ inválido: doc.kml não encontrado');
+        }
+        
+        const kmlContent = await kmlFile.async('text');
+        const kmlData = await parseKML(kmlContent);
+        
+        // Limpar obras existentes
+        drawnItems.clearLayers();
+        
+        // Adicionar obras importadas
+        kmlData.forEach(workData => {
+            const work = createWorkFromKMLData(workData);
+            if (work) {
+                drawnItems.addLayer(work);
+            }
+        });
+        
+        showToast(`${kmlData.length} obras importadas com sucesso!`, 'success');
+        
+    } catch (error) {
+        console.error('Erro ao importar KMZ:', error);
+        showToast('Erro ao importar KMZ: ' + error.message, 'error');
+    } finally {
+        event.target.value = '';
+    }
+}
+
+// Exportar para KMZ
+async function exportToKMZ() {
+    const layers = drawnItems.getLayers();
+    if (layers.length === 0) {
+        showToast('Nenhuma obra para exportar!', 'warning');
+        return;
+    }
+    
+    try {
+        const kmlContent = generateKML();
+        const zip = new JSZip();
+        
+        zip.file('doc.kml', kmlContent);
+        
+        const blob = await zip.generateAsync({ type: 'blob' });
+        
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `obras_${new Date().toISOString().split('T')[0]}.kmz`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+        
+        showToast('KMZ exportado com sucesso!', 'success');
+    } catch (error) {
+        console.error('Erro ao exportar KMZ:', error);
+        showToast('Erro ao exportar KMZ: ' + error.message, 'error');
+    }
+}
+
+// Gerar conteúdo KML
+function generateKML() {
+    const layers = drawnItems.getLayers();
+    const kml = `<?xml version="1.0" encoding="UTF-8"?>
+<kml xmlns="http://www.opengis.net/kml/2.2">
+    <Document>
+        <name>Obras</name>
+        <description>Sistema de Controle de Obras</description>
+        ${layers.map(work => generateKMLPlacemark(work)).join('')}
+    </Document>
+</kml>`;
+    
+    return kml;
+}
+
+// Gerar placemark KML para uma obra
+function generateKMLPlacemark(work) {
+    let coordinates = '';
+    let geometry = '';
+    
+    if (work.workType === 'marker') {
+        const pos = work.getLatLng();
+        coordinates = `${pos.lng},${pos.lat},0`;
+        geometry = `<Point><coordinates>${coordinates}</coordinates></Point>`;
+    } else if (work.workType === 'polygon') {
+        const latLngs = work.getLatLngs()[0];
+        coordinates = latLngs.map(latLng => `${latLng.lng},${latLng.lat},0`).join(' ');
+        geometry = `<Polygon><outerBoundaryIs><LinearRing><coordinates>${coordinates}</coordinates></LinearRing></outerBoundaryIs></Polygon>`;
+    } else if (work.workType === 'polyline') {
+        const latLngs = work.getLatLngs();
+        coordinates = latLngs.map(latLng => `${latLng.lng},${latLng.lat},0`).join(' ');
+        geometry = `<LineString><coordinates>${coordinates}</coordinates></LineString>`;
+    }
+    
+    return `
+        <Placemark>
+            <name>${work.workName || 'Obra sem nome'}</name>
+            <description>
+                <![CDATA[
+                    <b>Número da OS:</b> ${work.workNumber || 'Não informado'}<br/>
+                    <b>Produto:</b> ${work.workProduct || 'Não informado'}<br/>
+                    <b>Medida:</b> ${work.workMeasure || 'Não informado'}<br/>
+                    <b>Observação:</b> ${work.workObservation || 'Sem observação'}
+                ]]>
+            </description>
+            <Style>
+                <LineStyle>
+                    <color>ff6d28d9</color>
+                    <width>2</width>
+                </LineStyle>
+                <PolyStyle>
+                    <color>806d28d9</color>
+                </PolyStyle>
+            </Style>
+            ${geometry}
+        </Placemark>`;
+}
+
+// Parsear KML
+async function parseKML(kmlContent) {
+    return new Promise((resolve, reject) => {
+        // Verificar se xml2js está disponível
+        if (typeof xml2js === 'undefined') {
+            reject(new Error('xml2js não está carregado. Recarregue a página.'));
+            return;
+        }
+        
+        const parser = new xml2js.Parser();
+        parser.parseString(kmlContent, (err, result) => {
+            if (err) {
+                reject(err);
+                return;
+            }
+            
+            try {
+                const placemarks = result.kml.Document[0].Placemark || [];
+                const works = placemarks.map(placemark => {
+                    const name = placemark.name ? placemark.name[0] : 'Obra sem nome';
+                    const description = placemark.description ? placemark.description[0] : '';
+                    const geometry = placemark.Point || placemark.Polygon || placemark.LineString;
+                    
+                    let workData = {
+                        name: name,
+                        description: description,
+                        workNumber: '',
+                        workProduct: '',
+                        workMeasure: '',
+                        workObservation: ''
+                    };
+                    
+                    if (placemark.Point) {
+                        workData.workType = 'marker';
+                        const coords = placemark.Point[0].coordinates[0].split(',');
+                        workData.position = {
+                            lat: parseFloat(coords[1]),
+                            lng: parseFloat(coords[0])
+                        };
+                    } else if (placemark.Polygon) {
+                        workData.workType = 'polygon';
+                        const coords = placemark.Polygon[0].outerBoundaryIs[0].LinearRing[0].coordinates[0];
+                        workData.paths = coords.split(' ').map(coord => {
+                            const parts = coord.split(',');
+                            return {
+                                lat: parseFloat(parts[1]),
+                                lng: parseFloat(parts[0])
+                            };
+                        });
+                    } else if (placemark.LineString) {
+                        workData.workType = 'polyline';
+                        const coords = placemark.LineString[0].coordinates[0];
+                        workData.path = coords.split(' ').map(coord => {
+                            const parts = coord.split(',');
+                            return {
+                                lat: parseFloat(parts[1]),
+                                lng: parseFloat(parts[0])
+                            };
+                        });
+                    }
+                    
+                    return workData;
+                });
+                
+                resolve(works);
+            } catch (error) {
+                reject(error);
+            }
+        });
+    });
+}
+
+// Criar obra a partir dos dados KML
+function createWorkFromKMLData(workData) {
+    try {
+        let work;
+        
+        if (workData.workType === 'marker') {
+            work = L.marker([workData.position.lat, workData.position.lng]);
+        } else if (workData.workType === 'polygon') {
+            work = L.polygon(workData.paths);
+        } else if (workData.workType === 'polyline') {
+            work = L.polyline(workData.path);
+        }
+        
+        if (work) {
+            work.workId = generateWorkId();
+            work.workName = workData.name;
+            work.workNumber = workData.workNumber;
+            work.workProduct = workData.workProduct;
+            work.workMeasure = workData.workMeasure;
+            work.workObservation = workData.workObservation;
+            work.workDescription = workData.description;
+            work.workStatus = 'planejamento';
+            work.workType = workData.workType;
+            work.workDate = new Date().toISOString().split('T')[0];
+            work.isSelected = false;
+        }
+        
+        return work;
+    } catch (error) {
+        console.error('Erro ao criar obra a partir do KML:', error);
+        return null;
+    }
+}
+
+// Gerar ID único para obra
+function generateWorkId() {
+    return 'work_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+}
