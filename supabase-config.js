@@ -209,10 +209,16 @@ function mergeMarkings(localMarkings, serverMarkings) {
             
             if (serverTime > localTime) {
                 console.log(`🔄 Atualizando marcação ${serverMarking.id} do servidor`);
-                console.log('🔍 Marcação local:', merged[existingIndex]);
-                console.log('🔍 Marcação do servidor:', serverMarking);
-                merged[existingIndex] = serverMarking;
-                console.log('🔍 Marcação após merge:', merged[existingIndex]);
+                
+                // Preservar formato original se a marcação local tem data (formato antigo)
+                if (merged[existingIndex].data && !serverMarking.data) {
+                    // Manter dados locais e apenas atualizar timestamp
+                    merged[existingIndex].timestamp = serverMarking.timestamp;
+                    merged[existingIndex].lastModified = serverMarking.lastModified;
+                } else {
+                    // Usar dados do servidor apenas se não há dados locais
+                    merged[existingIndex] = serverMarking;
+                }
             }
         } else {
             console.log(`➕ Adicionando nova marcação ${serverMarking.id} do servidor`);
