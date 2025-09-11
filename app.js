@@ -1859,14 +1859,11 @@ function syncNewMarkings() {
                     
                     // Verificar se é marcação no formato antigo (com data) ou novo (direto)
                     if (marking.data) {
-                        // Formato antigo com propriedade data
+                        // Formato antigo com propriedade data - usar diretamente
                         layer = geoJSONToLayer(marking.data, marking.type);
-                    } else {
-                        // Formato novo - converter para GeoJSON
-                        const geoJSON = convertMarkingToGeoJSON(marking);
-                        if (geoJSON) {
-                            layer = geoJSONToLayer(geoJSON, marking.type);
-                        }
+                    } else if (marking.coordinates && marking.type) {
+                        // Formato novo - criar layer diretamente sem conversão GeoJSON
+                        layer = createLayerFromMarking(marking);
                     }
                     
                     if (layer) {
@@ -1890,6 +1887,59 @@ function syncNewMarkings() {
 
 // Função para sincronização automática com Supabase
 // Função de sincronização automática removida - apenas manual via botão
+
+// Criar layer diretamente da marcação preservando formato original
+function createLayerFromMarking(marking) {
+    if (!marking.coordinates || !marking.type) return null;
+    
+    try {
+        if (marking.type === 'marker') {
+            const marker = L.marker([marking.coordinates.lat, marking.coordinates.lng]);
+            if (marking.properties?.popupContent) {
+                marker.bindPopup(marking.properties.popupContent);
+            }
+            return marker;
+        } else if (marking.type === 'polyline') {
+            const coords = Array.isArray(marking.coordinates) 
+                ? marking.coordinates.map(coord => 
+                    Array.isArray(coord) ? [coord[1], coord[0]] : [coord.lat, coord.lng]
+                  )
+                : [[marking.coordinates.lat, marking.coordinates.lng]];
+            return L.polyline(coords, {
+                color: marking.properties?.color || '#3388ff',
+                weight: marking.properties?.weight || 3
+            });
+        } else if (marking.type === 'polygon') {
+            const coords = Array.isArray(marking.coordinates) 
+                ? [marking.coordinates.map(coord => 
+                    Array.isArray(coord) ? [coord[1], coord[0]] : [coord.lat, coord.lng]
+                  )]
+                : [[[marking.coordinates.lat, marking.coordinates.lng]]];
+            return L.polygon(coords, {
+                color: marking.properties?.color || '#3388ff',
+                weight: marking.properties?.weight || 3,
+                fillColor: marking.properties?.fillColor || '#3388ff',
+                fillOpacity: marking.properties?.fillOpacity || 0.2
+            });
+        } else if (marking.type === 'circle') {
+            const circle = L.circle([marking.coordinates.lat, marking.coordinates.lng], {
+                radius: marking.radius || 100,
+                color: marking.properties?.color || '#3388ff',
+                weight: marking.properties?.weight || 3,
+                fillColor: marking.properties?.fillColor || '#3388ff',
+                fillOpacity: marking.properties?.fillOpacity || 0.2
+            });
+            if (marking.properties?.popupContent) {
+                circle.bindPopup(marking.properties.popupContent);
+            }
+            return circle;
+        }
+        return null;
+    } catch (error) {
+        console.error('Erro ao criar layer da marcação:', error);
+        return null;
+    }
+}
 
 // Converter marcação para formato GeoJSON
 function convertMarkingToGeoJSON(marking) {
@@ -2133,7 +2183,7 @@ function setupRealTimeSync() {
                     showSyncNotification(`📱 ${newMarkings} nova(s) marcação(ões) do celular!`, 'success');
                 } else {
                     updateSyncStatus('success', 'Dados sincronizados');
-                    showSyncNotification('📱 Dados sincronizados do celular!', 'success');
+                    // Notificação removida para evitar spam
                 }
                 
                 // Voltar ao status normal após 3 segundos
