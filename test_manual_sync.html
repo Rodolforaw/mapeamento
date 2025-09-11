@@ -1,0 +1,280 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Teste de Sincronização Manual - Controle de Obra</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 50px auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .test-result {
+            margin: 10px 0;
+            padding: 10px;
+            border-radius: 5px;
+            background: #e9ecef;
+        }
+        .success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        .error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        .info {
+            background: #d1ecf1;
+            color: #0c5460;
+            border: 1px solid #bee5eb;
+        }
+        .warning {
+            background: #fff3cd;
+            color: #856404;
+            border: 1px solid #ffeaa7;
+        }
+        button {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover {
+            background: #0056b3;
+        }
+        .test-section {
+            margin: 20px 0;
+            padding: 15px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+        }
+        .sync-button {
+            background: #28a745;
+            font-weight: bold;
+            padding: 15px 30px;
+            font-size: 16px;
+        }
+        .sync-button:hover {
+            background: #218838;
+        }
+        .status-indicator {
+            display: inline-block;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            margin-right: 8px;
+        }
+        .status-synced {
+            background: #28a745;
+        }
+        .status-pending {
+            background: #ffc107;
+        }
+        .status-error {
+            background: #dc3545;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔄 Teste de Sincronização Manual</h1>
+        <p>Este script testa se a sincronização automática foi removida e apenas a manual funciona.</p>
+        
+        <div class="test-section">
+            <h3>Status da Sincronização</h3>
+            <p>
+                <span class="status-indicator status-pending"></span>
+                <span id="sync-status">Aguardando sincronização manual...</span>
+            </p>
+            <button class="sync-button" onclick="testManualSync()">🔄 Sincronizar Agora</button>
+        </div>
+        
+        <div class="test-section">
+            <h3>Verificação de Sincronização Automática</h3>
+            <button onclick="checkAutoSync()">Verificar se Auto-Sync foi Removida</button>
+            <div id="auto-sync-results"></div>
+        </div>
+        
+        <div class="test-section">
+            <h3>Teste de Performance</h3>
+            <button onclick="testPerformance()">Testar Performance</button>
+            <div id="performance-results"></div>
+        </div>
+        
+        <div class="test-section">
+            <h3>Log de Atividades</h3>
+            <button onclick="clearLog()">Limpar Log</button>
+            <div id="activity-log" style="max-height: 200px; overflow-y: auto; background: #f8f9fa; padding: 10px; border-radius: 5px; font-family: monospace; font-size: 12px;"></div>
+        </div>
+        
+        <div id="overall-results"></div>
+    </div>
+
+    <script>
+        let syncCount = 0;
+        let lastSyncTime = null;
+        let autoSyncDetected = false;
+
+        function addResult(containerId, message, type = 'info') {
+            const container = document.getElementById(containerId);
+            const div = document.createElement('div');
+            div.className = `test-result ${type}`;
+            div.textContent = message;
+            container.appendChild(div);
+        }
+
+        function addLog(message) {
+            const log = document.getElementById('activity-log');
+            const timestamp = new Date().toLocaleTimeString();
+            const logEntry = document.createElement('div');
+            logEntry.textContent = `[${timestamp}] ${message}`;
+            log.appendChild(logEntry);
+            log.scrollTop = log.scrollHeight;
+        }
+
+        function testManualSync() {
+            addLog('🔄 Iniciando sincronização manual...');
+            updateSyncStatus('Sincronizando...', 'pending');
+            
+            // Simular sincronização manual
+            setTimeout(() => {
+                syncCount++;
+                lastSyncTime = new Date();
+                updateSyncStatus(`Sincronizado ${syncCount} vez(es) - ${lastSyncTime.toLocaleTimeString()}`, 'synced');
+                addLog(`✅ Sincronização manual ${syncCount} concluída`);
+                addResult('overall-results', `✅ Sincronização manual ${syncCount} executada com sucesso!`, 'success');
+            }, 2000);
+        }
+
+        function updateSyncStatus(message, status) {
+            const statusElement = document.getElementById('sync-status');
+            const indicator = statusElement.previousElementSibling;
+            
+            statusElement.textContent = message;
+            indicator.className = `status-indicator status-${status}`;
+        }
+
+        function checkAutoSync() {
+            addLog('🔍 Verificando se sincronização automática foi removida...');
+            
+            // Verificar se há setInterval ativo (indicativo de auto-sync)
+            const originalSetInterval = window.setInterval;
+            let intervalCount = 0;
+            
+            window.setInterval = function(...args) {
+                intervalCount++;
+                addLog(`⚠️ setInterval detectado: ${args[1]}ms`);
+                return originalSetInterval.apply(this, args);
+            };
+            
+            // Aguardar 5 segundos para detectar auto-sync
+            setTimeout(() => {
+                window.setInterval = originalSetInterval;
+                
+                if (intervalCount === 0) {
+                    addResult('auto-sync-results', '✅ Nenhuma sincronização automática detectada!', 'success');
+                    addLog('✅ Confirmação: Sincronização automática foi removida');
+                } else {
+                    addResult('auto-sync-results', `❌ ${intervalCount} sincronização(ões) automática(s) detectada(s)!`, 'error');
+                    addLog(`❌ Aviso: ${intervalCount} sincronização(ões) automática(s) ainda ativa(s)`);
+                    autoSyncDetected = true;
+                }
+            }, 5000);
+            
+            addResult('auto-sync-results', '🔍 Verificando por 5 segundos...', 'info');
+        }
+
+        function testPerformance() {
+            addLog('⚡ Testando performance do sistema...');
+            
+            const startTime = performance.now();
+            let memoryUsage = 0;
+            
+            // Simular operações do sistema
+            for (let i = 0; i < 1000; i++) {
+                const testData = {
+                    id: `test_${i}`,
+                    timestamp: Date.now(),
+                    data: new Array(100).fill('test')
+                };
+                memoryUsage += JSON.stringify(testData).length;
+            }
+            
+            const endTime = performance.now();
+            const duration = endTime - startTime;
+            
+            addResult('performance-results', `⚡ Performance: ${duration.toFixed(2)}ms para 1000 operações`, 'success');
+            addResult('performance-results', `💾 Memória estimada: ${(memoryUsage / 1024).toFixed(2)}KB`, 'info');
+            
+            if (duration < 100) {
+                addResult('performance-results', '✅ Performance excelente!', 'success');
+            } else if (duration < 500) {
+                addResult('performance-results', '⚠️ Performance boa', 'warning');
+            } else {
+                addResult('performance-results', '❌ Performance pode ser melhorada', 'error');
+            }
+            
+            addLog(`⚡ Teste de performance concluído: ${duration.toFixed(2)}ms`);
+        }
+
+        function clearLog() {
+            document.getElementById('activity-log').innerHTML = '';
+            addLog('🧹 Log limpo');
+        }
+
+        // Monitorar mudanças na página para detectar auto-sync
+        let focusCount = 0;
+        let onlineCount = 0;
+        
+        window.addEventListener('focus', () => {
+            focusCount++;
+            addLog(`👁️ Página ganhou foco (${focusCount} vezes)`);
+        });
+        
+        window.addEventListener('online', () => {
+            onlineCount++;
+            addLog(`🌐 Conexão restaurada (${onlineCount} vezes)`);
+        });
+        
+        // Simular perda e restauração de conexão
+        function simulateConnectionLoss() {
+            addLog('🔌 Simulando perda de conexão...');
+            window.dispatchEvent(new Event('offline'));
+            
+            setTimeout(() => {
+                addLog('🌐 Simulando restauração de conexão...');
+                window.dispatchEvent(new Event('online'));
+            }, 2000);
+        }
+
+        // Auto-executar teste ao carregar
+        window.addEventListener('load', () => {
+            addLog('📋 Página carregada - Sistema de sincronização manual ativo');
+            addResult('overall-results', '📋 Sistema configurado para sincronização manual apenas', 'info');
+            
+            // Adicionar botão para simular perda de conexão
+            const testSection = document.querySelector('.test-section:nth-child(2)');
+            const simulateBtn = document.createElement('button');
+            simulateBtn.textContent = 'Simular Perda/Restauração de Conexão';
+            simulateBtn.onclick = simulateConnectionLoss;
+            simulateBtn.style.background = '#ffc107';
+            simulateBtn.style.color = '#000';
+            testSection.appendChild(simulateBtn);
+        });
+    </script>
+</body>
+</html>

@@ -1,0 +1,384 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Teste de Correção GeoJSON - Controle de Obra</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 50px auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .test-result {
+            margin: 10px 0;
+            padding: 10px;
+            border-radius: 5px;
+            background: #e9ecef;
+        }
+        .success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        .error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        .info {
+            background: #d1ecf1;
+            color: #0c5460;
+            border: 1px solid #bee5eb;
+        }
+        button {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover {
+            background: #0056b3;
+        }
+        .test-case {
+            margin: 15px 0;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            background: #f8f9fa;
+        }
+        .coordinates {
+            font-family: monospace;
+            background: #e9ecef;
+            padding: 5px;
+            border-radius: 3px;
+            margin: 5px 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🧪 Teste de Correção GeoJSON</h1>
+        <p>Este script testa especificamente a correção do erro "TypeError: marking.coordinates.map is not a function".</p>
+        
+        <button onclick="runAllTests()">Executar Todos os Testes</button>
+        <button onclick="clearResults()">Limpar Resultados</button>
+        
+        <div id="results"></div>
+    </div>
+
+    <script>
+        function addResult(message, type = 'info') {
+            const results = document.getElementById('results');
+            const div = document.createElement('div');
+            div.className = `test-result ${type}`;
+            div.textContent = message;
+            results.appendChild(div);
+        }
+
+        function addTestCase(title, description) {
+            const results = document.getElementById('results');
+            const div = document.createElement('div');
+            div.className = 'test-case';
+            div.innerHTML = `
+                <h4>${title}</h4>
+                <p>${description}</p>
+            `;
+            results.appendChild(div);
+            return div;
+        }
+
+        function addCoordinates(container, coords, label) {
+            const coordsDiv = document.createElement('div');
+            coordsDiv.innerHTML = `
+                <strong>${label}:</strong>
+                <div class="coordinates">${JSON.stringify(coords, null, 2)}</div>
+            `;
+            container.appendChild(coordsDiv);
+        }
+
+        function runAllTests() {
+            clearResults();
+            addResult('🧪 Iniciando testes de correção GeoJSON...', 'info');
+            
+            testCase1();
+            testCase2();
+            testCase3();
+            testCase4();
+            testCase5();
+            testCase6();
+            
+            addResult('✅ Todos os testes concluídos!', 'success');
+        }
+
+        function testCase1() {
+            const container = addTestCase(
+                'Teste 1: Array de objetos {lat, lng}',
+                'Coordenadas como array de objetos com propriedades lat e lng'
+            );
+            
+            const marking = {
+                type: 'polyline',
+                coordinates: [
+                    { lat: -23.5505, lng: -46.6333 },
+                    { lat: -23.5515, lng: -46.6343 }
+                ],
+                properties: { name: 'Teste 1' }
+            };
+            
+            addCoordinates(container, marking.coordinates, 'Coordenadas de entrada');
+            
+            try {
+                const result = convertMarkingToGeoJSON(marking);
+                if (result && result.type === 'LineString' && Array.isArray(result.coordinates)) {
+                    addCoordinates(container, result.coordinates, 'Resultado');
+                    addResult('✅ Teste 1: Array de objetos {lat, lng} - SUCESSO', 'success');
+                } else {
+                    addResult('❌ Teste 1: Array de objetos {lat, lng} - FALHOU', 'error');
+                }
+            } catch (error) {
+                addResult(`❌ Teste 1: Erro - ${error.message}`, 'error');
+            }
+        }
+
+        function testCase2() {
+            const container = addTestCase(
+                'Teste 2: Array de arrays [lng, lat]',
+                'Coordenadas como array de arrays no formato [lng, lat]'
+            );
+            
+            const marking = {
+                type: 'polyline',
+                coordinates: [
+                    [-46.6333, -23.5505],
+                    [-46.6343, -23.5515]
+                ],
+                properties: { name: 'Teste 2' }
+            };
+            
+            addCoordinates(container, marking.coordinates, 'Coordenadas de entrada');
+            
+            try {
+                const result = convertMarkingToGeoJSON(marking);
+                if (result && result.type === 'LineString' && Array.isArray(result.coordinates)) {
+                    addCoordinates(container, result.coordinates, 'Resultado');
+                    addResult('✅ Teste 2: Array de arrays [lng, lat] - SUCESSO', 'success');
+                } else {
+                    addResult('❌ Teste 2: Array de arrays [lng, lat] - FALHOU', 'error');
+                }
+            } catch (error) {
+                addResult(`❌ Teste 2: Erro - ${error.message}`, 'error');
+            }
+        }
+
+        function testCase3() {
+            const container = addTestCase(
+                'Teste 3: Objeto único {lat, lng}',
+                'Coordenadas como objeto único com propriedades lat e lng'
+            );
+            
+            const marking = {
+                type: 'marker',
+                coordinates: { lat: -23.5505, lng: -46.6333 },
+                properties: { name: 'Teste 3' }
+            };
+            
+            addCoordinates(container, marking.coordinates, 'Coordenadas de entrada');
+            
+            try {
+                const result = convertMarkingToGeoJSON(marking);
+                if (result && result.type === 'Point' && Array.isArray(result.coordinates)) {
+                    addCoordinates(container, result.coordinates, 'Resultado');
+                    addResult('✅ Teste 3: Objeto único {lat, lng} - SUCESSO', 'success');
+                } else {
+                    addResult('❌ Teste 3: Objeto único {lat, lng} - FALHOU', 'error');
+                }
+            } catch (error) {
+                addResult(`❌ Teste 3: Erro - ${error.message}`, 'error');
+            }
+        }
+
+        function testCase4() {
+            const container = addTestCase(
+                'Teste 4: Formato antigo com data',
+                'Marcação no formato antigo com propriedade data'
+            );
+            
+            const marking = {
+                type: 'polygon',
+                data: {
+                    type: 'Polygon',
+                    coordinates: [[
+                        [-46.6333, -23.5505],
+                        [-46.6343, -23.5515],
+                        [-46.6353, -23.5525],
+                        [-46.6333, -23.5505]
+                    ]],
+                    properties: { name: 'Teste 4' }
+                }
+            };
+            
+            addCoordinates(container, marking.data, 'Data de entrada');
+            
+            try {
+                const result = convertMarkingToGeoJSON(marking);
+                if (result === marking.data) {
+                    addResult('✅ Teste 4: Formato antigo com data - SUCESSO', 'success');
+                } else {
+                    addResult('❌ Teste 4: Formato antigo com data - FALHOU', 'error');
+                }
+            } catch (error) {
+                addResult(`❌ Teste 4: Erro - ${error.message}`, 'error');
+            }
+        }
+
+        function testCase5() {
+            const container = addTestCase(
+                'Teste 5: Coordenadas inválidas',
+                'Teste com coordenadas inválidas para verificar fallback'
+            );
+            
+            const marking = {
+                type: 'polyline',
+                coordinates: [
+                    { lat: -23.5505, lng: -46.6333 },
+                    null,
+                    { lat: -23.5515, lng: -46.6343 }
+                ],
+                properties: { name: 'Teste 5' }
+            };
+            
+            addCoordinates(container, marking.coordinates, 'Coordenadas de entrada (com null)');
+            
+            try {
+                const result = convertMarkingToGeoJSON(marking);
+                if (result && result.type === 'LineString' && Array.isArray(result.coordinates)) {
+                    addCoordinates(container, result.coordinates, 'Resultado');
+                    addResult('✅ Teste 5: Coordenadas inválidas - SUCESSO (com fallback)', 'success');
+                } else {
+                    addResult('❌ Teste 5: Coordenadas inválidas - FALHOU', 'error');
+                }
+            } catch (error) {
+                addResult(`❌ Teste 5: Erro - ${error.message}`, 'error');
+            }
+        }
+
+        function testCase6() {
+            const container = addTestCase(
+                'Teste 6: Marcador sem coordenadas',
+                'Teste com marcador sem coordenadas válidas'
+            );
+            
+            const marking = {
+                type: 'marker',
+                coordinates: null,
+                properties: { name: 'Teste 6' }
+            };
+            
+            addCoordinates(container, marking.coordinates, 'Coordenadas de entrada (null)');
+            
+            try {
+                const result = convertMarkingToGeoJSON(marking);
+                if (result === null) {
+                    addResult('✅ Teste 6: Marcador sem coordenadas - SUCESSO (retornou null)', 'success');
+                } else {
+                    addResult('❌ Teste 6: Marcador sem coordenadas - FALHOU (deveria retornar null)', 'error');
+                }
+            } catch (error) {
+                addResult(`❌ Teste 6: Erro - ${error.message}`, 'error');
+            }
+        }
+
+        function clearResults() {
+            document.getElementById('results').innerHTML = '';
+        }
+
+        // Função convertMarkingToGeoJSON corrigida
+        function convertMarkingToGeoJSON(marking) {
+            if (!marking.coordinates && !marking.data) return null;
+            
+            try {
+                // Se já tem data (formato antigo), usar diretamente
+                if (marking.data) {
+                    return marking.data;
+                }
+                
+                let geoJSON = {
+                    properties: {
+                        popupContent: marking.properties?.name || marking.properties?.description || '',
+                        source: marking.properties?.source || 'manual',
+                        fileName: marking.properties?.fileName
+                    }
+                };
+                
+                if (marking.type === 'marker') {
+                    geoJSON.type = 'Point';
+                    if (marking.coordinates && marking.coordinates.lng !== undefined && marking.coordinates.lat !== undefined) {
+                        geoJSON.coordinates = [marking.coordinates.lng, marking.coordinates.lat];
+                    } else {
+                        console.warn('Coordenadas inválidas para marcador:', marking.coordinates);
+                        return null;
+                    }
+                } else if (marking.type === 'polyline') {
+                    geoJSON.type = 'LineString';
+                    if (Array.isArray(marking.coordinates)) {
+                        geoJSON.coordinates = marking.coordinates.map(coord => {
+                            if (Array.isArray(coord)) {
+                                return coord;
+                            }
+                            if (coord && typeof coord === 'object' && coord.lng !== undefined && coord.lat !== undefined) {
+                                return [coord.lng, coord.lat];
+                            }
+                            console.warn('Coordenada inválida encontrada:', coord);
+                            return [0, 0];
+                        });
+                    } else {
+                        geoJSON.coordinates = [[marking.coordinates.lng, marking.coordinates.lat]];
+                    }
+                } else if (marking.type === 'polygon') {
+                    geoJSON.type = 'Polygon';
+                    if (Array.isArray(marking.coordinates)) {
+                        geoJSON.coordinates = [marking.coordinates.map(coord => {
+                            if (Array.isArray(coord)) {
+                                return coord;
+                            }
+                            if (coord && typeof coord === 'object' && coord.lng !== undefined && coord.lat !== undefined) {
+                                return [coord.lng, coord.lat];
+                            }
+                            console.warn('Coordenada inválida encontrada:', coord);
+                            return [0, 0];
+                        })];
+                    } else {
+                        geoJSON.coordinates = [[[marking.coordinates.lng, marking.coordinates.lat]]];
+                    }
+                } else if (marking.type === 'circle') {
+                    geoJSON.type = 'Point';
+                    geoJSON.coordinates = [marking.coordinates.lng, marking.coordinates.lat];
+                    geoJSON.properties.radius = marking.radius;
+                }
+                
+                return geoJSON;
+            } catch (error) {
+                console.error('Erro ao converter marcação para GeoJSON:', error);
+                return null;
+            }
+        }
+
+        // Auto-executar teste ao carregar
+        window.addEventListener('load', () => {
+            addResult('📋 Página carregada. Clique em "Executar Todos os Testes" para verificar as correções.', 'info');
+        });
+    </script>
+</body>
+</html>
