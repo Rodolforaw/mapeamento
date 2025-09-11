@@ -1790,6 +1790,18 @@ function saveMarking(layer, layerType) {
     if (isOnline) {
         // Salvar diretamente se online
         saveToLocalStorage(markingData);
+        
+        // Sincronizar imediatamente com Supabase se disponível
+        if (window.supabaseConfig && window.supabaseConfig.saveMarkings) {
+            setTimeout(async () => {
+                try {
+                    await window.supabaseConfig.saveMarkings([markingData]);
+                    console.log(`✅ Marcação ${markingData.id} sincronizada com Supabase`);
+                } catch (error) {
+                    console.warn(`⚠️ Erro ao sincronizar marcação ${markingData.id}:`, error);
+                }
+            }, 1000);
+        }
     } else {
         // Adicionar à fila offline
         offlineQueue.push(markingData);
@@ -2040,6 +2052,17 @@ function syncNewMarkings() {
                     }
                 }
                 
+                // Se falhou e é um círculo, tentar criar com raio da marcação
+                if (!layer && marking.type === 'circle' && marking.radius) {
+                    console.log(`🔵 Tentando recriar círculo ${marking.id} com raio ${marking.radius}`);
+                    layer = L.circle([marking.coordinates.lat, marking.coordinates.lng], {
+                        radius: marking.radius,
+                        color: '#2196F3',
+                        weight: 3,
+                        fillOpacity: 0.3
+                    });
+                }
+                
                 if (layer) {
                     layer._markingId = marking.id;
                     
@@ -2105,6 +2128,20 @@ function migrateOldMarkings() {
         
     } catch (error) {
         console.error('Erro ao migrar marcações antigas:', error);
+    }
+}
+
+// Função para forçar sincronização imediata
+function forceSyncNow() {
+    if (window.supabaseConfig && window.supabaseConfig.sync) {
+        console.log('🔄 Forçando sincronização imediata...');
+        window.supabaseConfig.sync().then(result => {
+            if (result.success) {
+                console.log('✅ Sincronização forçada concluída');
+            } else {
+                console.warn('⚠️ Erro na sincronização forçada:', result.error);
+            }
+        });
     }
 }
 
@@ -2211,9 +2248,10 @@ function convertMarkingToGeoJSON(marking) {
             geoJSON.type = 'Point';
             geoJSON.coordinates = [marking.coordinates.lng, marking.coordinates.lat];
             // Priorizar raio da marcação, depois das propriedades, depois padrão
-            geoJSON.properties.radius = marking.radius || marking.properties?.radius || 100;
+            const radius = marking.radius || marking.properties?.radius || 100;
+            geoJSON.properties.radius = radius;
             geoJSON.properties.isCircle = true; // Marcar como círculo
-            console.log(`🔵 Convertendo círculo para GeoJSON: raio ${geoJSON.properties.radius}`);
+            console.log(`🔵 Convertendo círculo para GeoJSON: raio ${radius} (marking.radius: ${marking.radius}, properties.radius: ${marking.properties?.radius})`);
         }
         
         return geoJSON;
@@ -2257,6 +2295,9 @@ function recreateLayerFromData(layerData, type) {
                 const bounds = L.latLngBounds(layerData.latlngs);
                 console.log(`⬜ Recriando retângulo com coordenadas: ${bounds.toString()}`);
                 return L.rectangle(bounds, layerData.options || {});
+            } else {
+                console.warn(`⚠️ Dados insuficientes para recriar retângulo:`, layerData);
+                return null;
             }
         }
         return null;
@@ -2920,6 +2961,11 @@ function setupGeolocationEventListeners() {
     const manualSyncPC = document.getElementById('manual-sync-pc');
     if (manualSyncPC) {
         manualSyncPC.addEventListener('click', manualSync);
+    }
+    
+    const forceSyncTest = document.getElementById('force-sync-test');
+    if (forceSyncTest) {
+        forceSyncTest.addEventListener('click', forceSyncNow);
     }
     
     const downloadOffline = document.getElementById('download-offline-pwa');
