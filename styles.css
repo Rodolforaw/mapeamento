@@ -569,6 +569,101 @@ body, html {
     background: #0056b3;
 }
 
+/* Estilos para marcadores de dispositivos */
+.device-location-marker {
+    background: none;
+    border: none;
+}
+
+.device-marker {
+    position: relative;
+    width: 30px;
+    height: 30px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
+}
+
+.device-marker.pwa {
+    background: linear-gradient(135deg, #4CAF50, #45a049);
+}
+
+.device-marker.desktop {
+    background: linear-gradient(135deg, #2196F3, #1976D2);
+}
+
+.device-icon {
+    font-size: 16px;
+    color: white;
+    z-index: 2;
+}
+
+.device-pulse {
+    position: absolute;
+    top: -5px;
+    left: -5px;
+    width: 40px;
+    height: 40px;
+    border: 2px solid currentColor;
+    border-radius: 50%;
+    animation: devicePulse 2s infinite;
+    opacity: 0.6;
+}
+
+.device-marker.pwa .device-pulse {
+    color: #4CAF50;
+}
+
+.device-marker.desktop .device-pulse {
+    color: #2196F3;
+}
+
+@keyframes devicePulse {
+    0% {
+        transform: scale(0.5);
+        opacity: 1;
+    }
+    100% {
+        transform: scale(1.5);
+        opacity: 0;
+    }
+}
+
+/* Estilos para popup de dispositivo */
+.device-popup {
+    min-width: 200px;
+}
+
+.device-popup h4 {
+    margin: 0 0 10px 0;
+    color: #333;
+    font-size: 16px;
+}
+
+.device-popup p {
+    margin: 5px 0;
+    font-size: 14px;
+    color: #666;
+}
+
+.center-device-btn {
+    background: #007bff;
+    color: white;
+    border: none;
+    padding: 8px 12px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 12px;
+    margin-top: 10px;
+    width: 100%;
+}
+
+.center-device-btn:hover {
+    background: #0056b3;
+}
+
 /* Modal de Gerenciamento de Obras */
 .works-modal-content {
     max-width: 90vw;
