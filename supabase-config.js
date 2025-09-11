@@ -315,5 +315,6 @@ window.supabaseConfig = {
     saveMarkings: saveMarkingsToSupabase,
     loadMarkings: loadMarkingsFromSupabase,
     deleteMarking: deleteMarkingFromSupabase,
-    setupSync: setupSupabaseSync
+    setupSync: setupSupabaseSync,
+    get supabaseClient() { return supabaseClient; }
 };
