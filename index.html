@@ -171,6 +171,46 @@
             border-left: 4px solid #6d28d9;
         }
         
+        /* Barra de ferramentas de desenho */
+        .draw-toolbar {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 1000;
+        }
+        
+        .draw-toolbar .leaflet-draw-toolbar {
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+            border: none;
+        }
+        
+        .draw-toolbar .leaflet-draw-toolbar a {
+            background: transparent;
+            border: none;
+            color: #6d28d9;
+            transition: all 0.2s ease;
+        }
+        
+        .draw-toolbar .leaflet-draw-toolbar a:hover {
+            background: #6d28d9;
+            color: white;
+            transform: scale(1.1);
+        }
+        
+        .draw-toolbar .leaflet-draw-toolbar a:first-child {
+            border-radius: 8px 0 0 8px;
+        }
+        
+        .draw-toolbar .leaflet-draw-toolbar a:last-child {
+            border-radius: 0 8px 8px 0;
+        }
+        
+        .draw-toolbar .leaflet-draw-toolbar a:only-child {
+            border-radius: 8px;
+        }
+        
         /* Modal */
         .modal {
             display: none;
@@ -323,6 +363,21 @@
 <body>
     <!-- Mapa -->
     <div id="map"></div>
+    
+    <!-- Barra de ferramentas de desenho -->
+    <div class="draw-toolbar">
+        <div class="leaflet-draw-toolbar leaflet-bar leaflet-draw-toolbar-top">
+            <a class="leaflet-draw-draw-polyline" href="#" title="Desenhar linha">
+                <span class="sr-only">Desenhar linha</span>
+            </a>
+            <a class="leaflet-draw-draw-polygon" href="#" title="Desenhar polígono">
+                <span class="sr-only">Desenhar polígono</span>
+            </a>
+            <a class="leaflet-draw-draw-marker" href="#" title="Desenhar marcador">
+                <span class="sr-only">Desenhar marcador</span>
+            </a>
+        </div>
+    </div>
     
     <!-- Botão hambúrguer -->
     <div class="hamburger-menu">
