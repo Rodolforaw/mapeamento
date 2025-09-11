@@ -1855,29 +1855,21 @@ function syncNewMarkings() {
                 const isLocallyDeleted = !localData.find(item => item.id === marking.id);
                 
                 if (marking.action !== 'delete' && !existingIds.has(marking.id) && !isLocallyDeleted) {
-                    console.log('🔍 Processando marcação:', marking);
                     let layer = null;
                     
                     // Verificar se é marcação no formato antigo (com data) ou novo (direto)
                     if (marking.data) {
-                        console.log('🔍 Usando formato antigo (data):', marking.data);
                         // Formato antigo com propriedade data - usar diretamente
                         layer = geoJSONToLayer(marking.data, marking.type);
                     } else if (marking.coordinates && marking.type) {
-                        console.log('🔍 Usando formato novo (createLayerFromMarking)');
                         // Formato novo - criar layer diretamente sem conversão GeoJSON
                         layer = createLayerFromMarking(marking);
                     }
-                    
-                    console.log('🔍 Layer criado:', layer);
                     
                     if (layer) {
                         layer._markingId = marking.id;
                         drawnItems.addLayer(layer);
                         newMarkingsCount++;
-                        console.log('✅ Marcação adicionada ao mapa:', marking.id);
-                    } else {
-                        console.warn('⚠️ Falha ao criar layer para marcação:', marking.id);
                     }
                 }
             } catch (error) {
@@ -1908,7 +1900,6 @@ function createLayerFromMarking(marking) {
             }
             return marker;
         } else if (marking.type === 'polyline') {
-            console.log('🔍 Criando polilinha:', marking);
             let coords;
             
             if (Array.isArray(marking.coordinates)) {
@@ -1924,8 +1915,6 @@ function createLayerFromMarking(marking) {
                 coords = [[marking.coordinates.lat, marking.coordinates.lng]];
             }
             
-            console.log('🔍 Coordenadas da polilinha:', coords);
-            
             const polyline = L.polyline(coords, {
                 color: marking.properties?.color || '#3388ff',
                 weight: marking.properties?.weight || 3
@@ -1937,7 +1926,6 @@ function createLayerFromMarking(marking) {
             
             return polyline;
         } else if (marking.type === 'polygon') {
-            console.log('🔍 Criando polígono:', marking);
             let coords;
             
             if (Array.isArray(marking.coordinates)) {
@@ -1956,8 +1944,6 @@ function createLayerFromMarking(marking) {
                 // Fallback para coordenada única
                 coords = [[[marking.coordinates.lat, marking.coordinates.lng]]];
             }
-            
-            console.log('🔍 Coordenadas do polígono:', coords);
             
             const polygon = L.polygon(coords, {
                 color: marking.properties?.color || '#3388ff',
@@ -2142,9 +2128,7 @@ function geoJSONToLayer(geoJSON, type) {
                 return layer;
             }
         } else if (geoJSON.type === 'Polygon') {
-            console.log('🔍 geoJSONToLayer - Criando polígono:', geoJSON);
             const coordinates = geoJSON.coordinates[0].map(coord => [coord[1], coord[0]]);
-            console.log('🔍 geoJSONToLayer - Coordenadas convertidas:', coordinates);
             const layer = L.polygon(coordinates, {
                 color: colorScheme.color,
                 weight: 3,
