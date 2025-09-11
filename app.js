@@ -2812,15 +2812,10 @@ function setupModeButtons() {
         manualSyncPC.style.display = !isPWA ? 'flex' : 'none';
     }
     
-    // Botões do modo PWA
-    const downloadOffline = document.getElementById('download-offline-pwa');
-    const uploadOffline = document.getElementById('upload-offline-pwa');
-    
-    if (downloadOffline) {
-        downloadOffline.style.display = isPWA ? 'flex' : 'none';
-    }
-    if (uploadOffline) {
-        uploadOffline.style.display = isPWA ? 'flex' : 'none';
+    // Container dos botões PWA
+    const pwaButtonsContainer = document.querySelector('.pwa-buttons');
+    if (pwaButtonsContainer) {
+        pwaButtonsContainer.style.display = isPWA ? 'flex' : 'none';
     }
     
     // Verificar se já está em modo offline
