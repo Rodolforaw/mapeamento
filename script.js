@@ -97,9 +97,6 @@ function initializeMap() {
         // Adicionar à camada de desenhos
         drawnItems.addLayer(layer);
         
-        // Mostrar painel de informações
-        showWorkInfo(layer);
-        
         showToast('Obra criada!', 'success');
     });
 
@@ -141,21 +138,6 @@ function changeMapLayer(layerName) {
     }
 }
 
-// Mostrar informações da obra
-function showWorkInfo(work) {
-    const infoPanel = document.getElementById('infoPanel');
-    const workName = document.getElementById('workName');
-    const workDescription = document.getElementById('workDescription');
-    const workStatus = document.getElementById('workStatus');
-    const workType = document.getElementById('workType');
-    
-    workName.textContent = work.workName || 'Obra sem nome';
-    workDescription.textContent = work.workDescription || 'Sem descrição';
-    workStatus.textContent = `Status: ${work.workStatus || 'Não definido'}`;
-    workType.textContent = `Tipo: ${work.workType || 'Não definido'}`;
-    
-    infoPanel.classList.add('show');
-}
 
 // Mostrar toast
 function showToast(message, type = 'success') {
