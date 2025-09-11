@@ -10,6 +10,11 @@ let currentWork = null;
 const SUPABASE_URL = CONFIG.SUPABASE_URL;
 const SUPABASE_ANON_KEY = CONFIG.SUPABASE_ANON_KEY;
 
+console.log('Configurações carregadas:');
+console.log('CONFIG:', CONFIG);
+console.log('SUPABASE_URL:', SUPABASE_URL);
+console.log('SUPABASE_ANON_KEY:', SUPABASE_ANON_KEY ? 'Definida' : 'Não definida');
+
 // Coordenadas de Maricá, RJ
 const MARICA_CENTER = CONFIG.MAP_CENTER;
 
@@ -156,22 +161,34 @@ function toggleSideMenu() {
 
 // Funções do Supabase
 function createSupabaseClient() {
+    console.log('Verificando se Supabase está carregado...');
+    console.log('typeof supabase:', typeof supabase);
+    console.log('SUPABASE_URL:', SUPABASE_URL);
+    console.log('SUPABASE_ANON_KEY:', SUPABASE_ANON_KEY ? 'Definida' : 'Não definida');
+    
     if (typeof supabase === 'undefined') {
         console.error('Supabase não está carregado');
         return null;
     }
-    return supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    
+    const client = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    console.log('Cliente Supabase criado:', client);
+    return client;
 }
 
 // Salvar obra no Supabase
 async function saveWorkToSupabase(workData) {
     try {
+        console.log('Tentando salvar no Supabase:', workData);
+        
         const supabaseClient = createSupabaseClient();
         if (!supabaseClient) {
             console.warn('Supabase não carregado');
             return false;
         }
 
+        console.log('Cliente Supabase criado, enviando dados...');
+        
         const { data, error } = await supabaseClient
             .from('works')
             .insert([workData]);
@@ -181,6 +198,7 @@ async function saveWorkToSupabase(workData) {
             return false;
         }
 
+        console.log('Dados salvos com sucesso:', data);
         return true;
     } catch (error) {
         console.error('Erro ao conectar com Supabase:', error);
@@ -353,8 +371,12 @@ async function saveWorkInfo() {
         };
     }
     
+    // Gerar ID único
+    const workId = generateWorkId();
+    console.log('ID gerado:', workId);
+    
     const workData = {
-        id: generateWorkId(), // Gerar ID único
+        id: workId,
         name: currentWork.workName,
         description: workObservation,
         type: workType,
@@ -366,6 +388,8 @@ async function saveWorkInfo() {
         status: 'planejamento',
         date: new Date().toISOString()
     };
+    
+    console.log('Dados a serem salvos:', workData);
     
     // Salvar no Supabase
     const saved = await saveWorkToSupabase(workData);
