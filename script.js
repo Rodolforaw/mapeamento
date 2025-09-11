@@ -79,6 +79,9 @@ function initializeMap() {
     });
 
     map.addControl(drawControl);
+    
+    // Conectar botões personalizados com o Leaflet.draw
+    connectCustomDrawButtons();
 
     // Eventos de desenho
     map.on(L.Draw.Event.CREATED, function(event) {
@@ -453,4 +456,49 @@ function createWorkFromKMLData(workData) {
 // Gerar ID único para obra
 function generateWorkId() {
     return 'work_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+}
+
+// Conectar botões personalizados com Leaflet.draw
+function connectCustomDrawButtons() {
+    // Aguardar um pouco para garantir que os elementos estejam carregados
+    setTimeout(() => {
+        // Botão de linha
+        const polylineBtn = document.querySelector('.leaflet-draw-draw-polyline');
+        if (polylineBtn) {
+            polylineBtn.addEventListener('click', function(e) {
+                e.preventDefault();
+                // Simular clique no botão nativo do Leaflet
+                const nativePolylineBtn = document.querySelector('.leaflet-draw-toolbar-top .leaflet-draw-draw-polyline');
+                if (nativePolylineBtn) {
+                    nativePolylineBtn.click();
+                }
+            });
+        }
+        
+        // Botão de polígono
+        const polygonBtn = document.querySelector('.leaflet-draw-draw-polygon');
+        if (polygonBtn) {
+            polygonBtn.addEventListener('click', function(e) {
+                e.preventDefault();
+                // Simular clique no botão nativo do Leaflet
+                const nativePolygonBtn = document.querySelector('.leaflet-draw-toolbar-top .leaflet-draw-draw-polygon');
+                if (nativePolygonBtn) {
+                    nativePolygonBtn.click();
+                }
+            });
+        }
+        
+        // Botão de marcador
+        const markerBtn = document.querySelector('.leaflet-draw-draw-marker');
+        if (markerBtn) {
+            markerBtn.addEventListener('click', function(e) {
+                e.preventDefault();
+                // Simular clique no botão nativo do Leaflet
+                const nativeMarkerBtn = document.querySelector('.leaflet-draw-toolbar-top .leaflet-draw-draw-marker');
+                if (nativeMarkerBtn) {
+                    nativeMarkerBtn.click();
+                }
+            });
+        }
+    }, 100);
 }
