@@ -2145,6 +2145,24 @@ function forceSyncNow() {
     }
 }
 
+// Função para debug de marcações
+function debugMarkings() {
+    console.log('🔍 DEBUG: Analisando marcações locais...');
+    const localMarkings = JSON.parse(localStorage.getItem('controle_obra_markings') || '[]');
+    
+    localMarkings.forEach((marking, index) => {
+        console.log(`📋 Marcação ${index + 1} (${marking.id}):`);
+        console.log(`   Tipo: ${marking.type}`);
+        console.log(`   Radius: ${marking.radius}`);
+        console.log(`   Properties.radius: ${marking.properties?.radius}`);
+        console.log(`   Data.properties.radius: ${marking.data?.properties?.radius}`);
+        console.log(`   LayerData.radius: ${marking.layerData?.radius}`);
+        console.log(`   Bounds: ${marking.bounds ? 'Sim' : 'Não'}`);
+        console.log(`   LayerData.bounds: ${marking.layerData?.bounds ? 'Sim' : 'Não'}`);
+        console.log('---');
+    });
+}
+
 // Função para sincronização automática com Supabase
 async function autoSyncWithSupabase() {
     if (!window.supabaseConfig || !canSync()) return;
@@ -2247,11 +2265,65 @@ function convertMarkingToGeoJSON(marking) {
         } else if (marking.type === 'circle') {
             geoJSON.type = 'Point';
             geoJSON.coordinates = [marking.coordinates.lng, marking.coordinates.lat];
-            // Priorizar raio da marcação, depois das propriedades, depois padrão
-            const radius = marking.radius || marking.properties?.radius || 100;
+            
+            // Buscar raio em múltiplos locais
+            let radius = 100; // Padrão
+            if (marking.radius) {
+                radius = marking.radius;
+            } else if (marking.properties?.radius) {
+                radius = marking.properties.radius;
+            } else if (marking.data?.properties?.radius) {
+                radius = marking.data.properties.radius;
+            } else if (marking.layerData?.radius) {
+                radius = marking.layerData.radius;
+            }
+            
             geoJSON.properties.radius = radius;
             geoJSON.properties.isCircle = true; // Marcar como círculo
-            console.log(`🔵 Convertendo círculo para GeoJSON: raio ${radius} (marking.radius: ${marking.radius}, properties.radius: ${marking.properties?.radius})`);
+            console.log(`🔵 Convertendo círculo para GeoJSON: raio ${radius} (marking.radius: ${marking.radius}, properties.radius: ${marking.properties?.radius}, data.radius: ${marking.data?.properties?.radius}, layerData.radius: ${marking.layerData?.radius})`);
+        } else if (marking.type === 'rectangle') {
+            geoJSON.type = 'Polygon';
+            if (marking.bounds) {
+                // Usar bounds preservados
+                const sw = marking.bounds.southWest;
+                const ne = marking.bounds.northEast;
+                geoJSON.coordinates = [[
+                    [sw.lng, sw.lat],
+                    [ne.lng, sw.lat],
+                    [ne.lng, ne.lat],
+                    [sw.lng, ne.lat],
+                    [sw.lng, sw.lat]
+                ]];
+                console.log(`⬜ Convertendo retângulo com bounds: SW[${sw.lat}, ${sw.lng}] NE[${ne.lat}, ${ne.lng}]`);
+            } else if (marking.coordinates && marking.coordinates.length === 2) {
+                // Usar coordenadas preservadas
+                const sw = marking.coordinates[0];
+                const ne = marking.coordinates[1];
+                geoJSON.coordinates = [[
+                    [sw.lng, sw.lat],
+                    [ne.lng, sw.lat],
+                    [ne.lng, ne.lat],
+                    [sw.lng, ne.lat],
+                    [sw.lng, sw.lat]
+                ]];
+                console.log(`⬜ Convertendo retângulo com coordenadas: SW[${sw.lat}, ${sw.lng}] NE[${ne.lat}, ${ne.lng}]`);
+            } else if (marking.layerData?.bounds) {
+                // Usar bounds do layerData
+                const sw = marking.layerData.bounds.southWest;
+                const ne = marking.layerData.bounds.northEast;
+                geoJSON.coordinates = [[
+                    [sw.lng, sw.lat],
+                    [ne.lng, sw.lat],
+                    [ne.lng, ne.lat],
+                    [sw.lng, ne.lat],
+                    [sw.lng, sw.lat]
+                ]];
+                console.log(`⬜ Convertendo retângulo com layerData bounds: SW[${sw.lat}, ${sw.lng}] NE[${ne.lat}, ${ne.lng}]`);
+            } else {
+                // Fallback para coordenadas simples
+                geoJSON.coordinates = [[[marking.coordinates.lng, marking.coordinates.lat]]];
+                console.log(`⚠️ Retângulo sem bounds, usando coordenadas simples`);
+            }
         }
         
         return geoJSON;
@@ -2966,6 +3038,11 @@ function setupGeolocationEventListeners() {
     const forceSyncTest = document.getElementById('force-sync-test');
     if (forceSyncTest) {
         forceSyncTest.addEventListener('click', forceSyncNow);
+    }
+    
+    const debugMarkingsBtn = document.getElementById('debug-markings');
+    if (debugMarkingsBtn) {
+        debugMarkingsBtn.addEventListener('click', debugMarkings);
     }
     
     const downloadOffline = document.getElementById('download-offline-pwa');
