@@ -97,6 +97,19 @@
             <button id="devices-toggle" class="control-btn" title="Mostrar localizações dos dispositivos">
                 📱 Dispositivos Online
             </button>
+            
+            <!-- Botões de sincronização específicos por modo -->
+            <button id="manual-sync-pc" class="control-btn sync-btn" title="Sincronizar manualmente (modo PC)">
+                🔄 Sincronizar Agora
+            </button>
+            
+            <button id="download-offline-pwa" class="control-btn offline-btn" style="display: none;" title="Baixar dados para trabalho offline">
+                📥 Baixar Dados
+            </button>
+            
+            <button id="upload-offline-pwa" class="control-btn offline-btn" style="display: none;" title="Enviar dados quando online">
+                📤 Enviar Dados
+            </button>
             </div>
         </div>
     </div>
@@ -105,6 +118,11 @@
     <div id="loading" class="loading">
         <div class="spinner"></div>
         <p>Carregando mapa...</p>
+    </div>
+    
+    <!-- Status de Sincronização -->
+    <div id="sync-status" class="sync-status" style="display: none;">
+        <span id="sync-status-text">Sincronizando...</span>
     </div>
     
     <!-- Scripts -->
