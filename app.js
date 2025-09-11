@@ -2212,6 +2212,98 @@ function clearAllAndReload() {
     showNotification('Mapa limpo! Apenas marcações com dados preservados serão exibidas.', 'info');
 }
 
+// Função para migrar marcações antigas do Supabase para formato com dados preservados
+async function migrateOldMarkingsFromSupabase() {
+    console.log('🔄 Iniciando migração de marcações antigas do Supabase...');
+    
+    try {
+        if (!window.supabaseConfig || !window.supabaseConfig.supabaseClient) {
+            console.error('❌ Supabase não configurado');
+            return;
+        }
+
+        // Buscar todas as marcações do Supabase
+        const { data: markings, error } = await window.supabaseConfig.supabaseClient
+            .from('markings')
+            .select('*')
+            .order('created_at', { ascending: true });
+
+        if (error) {
+            console.error('❌ Erro ao buscar marcações:', error);
+            return;
+        }
+
+        if (!markings || markings.length === 0) {
+            console.log('ℹ️ Nenhuma marcação encontrada no Supabase');
+            return;
+        }
+
+        console.log(`📊 Encontradas ${markings.length} marcações no Supabase`);
+
+        // Migrar cada marcação
+        let migratedCount = 0;
+        let skippedCount = 0;
+
+        for (const marking of markings) {
+            if (marking.layerData) {
+                console.log(`✅ Marcação ${marking.id} já tem layerData, pulando...`);
+                skippedCount++;
+                continue;
+            }
+
+            // Tentar recriar a marcação a partir dos dados existentes
+            let layer = null;
+            
+            if (marking.data && marking.data.type) {
+                // Tentar usar GeoJSON se disponível
+                layer = geoJSONToLayer(marking.data, marking.type);
+            }
+
+            if (layer) {
+                // Extrair dados preservados da camada recriada
+                const layerData = extractLayerData(layer);
+                const visualProperties = extractVisualProperties(layer);
+
+                if (layerData) {
+                    // Atualizar a marcação no Supabase com dados preservados
+                    const { error: updateError } = await window.supabaseConfig.supabaseClient
+                        .from('markings')
+                        .update({
+                            layerData: layerData,
+                            visualProperties: visualProperties
+                        })
+                        .eq('id', marking.id);
+
+                    if (updateError) {
+                        console.error(`❌ Erro ao atualizar marcação ${marking.id}:`, updateError);
+                    } else {
+                        console.log(`✅ Marcação ${marking.id} migrada com sucesso`);
+                        migratedCount++;
+                    }
+                } else {
+                    console.log(`⚠️ Não foi possível extrair dados da marcação ${marking.id}`);
+                    skippedCount++;
+                }
+            } else {
+                console.log(`⚠️ Não foi possível recriar marcação ${marking.id}`);
+                skippedCount++;
+            }
+        }
+
+        console.log(`🎉 Migração concluída! ${migratedCount} migradas, ${skippedCount} puladas`);
+        showNotification(`Migração concluída! ${migratedCount} marcações migradas, ${skippedCount} puladas.`, 'success');
+
+        // Recarregar dados após migração
+        setTimeout(() => {
+            syncCrossContextData();
+        }, 1000);
+
+    } catch (error) {
+        console.error('❌ Erro durante migração:', error);
+        showNotification('Erro durante migração: ' + error.message, 'error');
+    }
+}
+
 // Função para debug dos dados do Supabase
 function debugSupabaseData() {
     console.log('🔍 DEBUG: Analisando dados do Supabase...');
@@ -3301,6 +3393,11 @@ function setupGeolocationEventListeners() {
     const clearAllReloadBtn = document.getElementById('clear-all-reload');
     if (clearAllReloadBtn) {
         clearAllReloadBtn.addEventListener('click', clearAllAndReload);
+    }
+    
+    const migrateOldMarkingsBtn = document.getElementById('migrate-old-markings');
+    if (migrateOldMarkingsBtn) {
+        migrateOldMarkingsBtn.addEventListener('click', migrateOldMarkingsFromSupabase);
     }
     
     const downloadOffline = document.getElementById('download-offline-pwa');
