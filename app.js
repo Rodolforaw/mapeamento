@@ -2213,6 +2213,62 @@ function clearOldMarkings() {
     showNotification('Marcações antigas removidas. Desenhe novas marcações para testar.', 'info');
 }
 
+// Função para debug dos dados do Supabase
+function debugSupabaseData() {
+    console.log('🔍 DEBUG: Analisando dados do Supabase...');
+    if (window.supabaseConfig && window.supabaseConfig.supabaseClient) {
+        window.supabaseConfig.supabaseClient
+            .from('markings')
+            .select('*')
+            .limit(5)
+            .then(({ data, error }) => {
+                if (error) {
+                    console.error('❌ Erro ao buscar dados do Supabase:', error);
+                } else {
+                    console.log('📊 Dados do Supabase (primeiras 5 marcações):');
+                    data.forEach((marking, index) => {
+                        console.log(`📋 Marcação ${index + 1} (${marking.id}):`);
+                        console.log(`   Tipo: ${marking.type}`);
+                        console.log(`   Radius: ${marking.radius}`);
+                        console.log(`   Bounds: ${marking.bounds ? 'Sim' : 'Não'}`);
+                        console.log(`   LayerData: ${marking.layerData ? 'Sim' : 'Não'}`);
+                        if (marking.layerData) {
+                            console.log(`   LayerData.radius: ${marking.layerData.radius}`);
+                            console.log(`   LayerData.bounds: ${marking.layerData.bounds ? 'Sim' : 'Não'}`);
+                        }
+                        console.log('---');
+                    });
+                }
+            });
+    } else {
+        console.error('❌ Supabase não inicializado');
+    }
+}
+
+// Função para testar criação de círculo
+function testCircleCreation() {
+    console.log('🧪 TESTE: Criando círculo de teste...');
+    
+    // Criar um círculo de teste
+    const testCircle = L.circle([-22.9, -42.8], {
+        radius: 500, // Raio grande para teste
+        color: '#ff0000',
+        weight: 3,
+        fillOpacity: 0.3
+    });
+    
+    // Adicionar ao mapa
+    drawnItems.addLayer(testCircle);
+    
+    // Salvar usando a função corrigida
+    saveMarkingWithData(testCircle, {
+        name: 'Teste Círculo',
+        description: 'Círculo de teste com raio 500'
+    });
+    
+    console.log('✅ Círculo de teste criado e salvo');
+}
+
 // Função para sincronização automática com Supabase
 async function autoSyncWithSupabase() {
     if (!window.supabaseConfig || !canSync()) return;
@@ -3087,6 +3143,7 @@ function saveMarkingWithData(layer, data) {
         if (window.supabaseConfig && window.supabaseConfig.saveMarkings) {
             setTimeout(async () => {
                 try {
+                    console.log(`🔄 Sincronizando marcação ${markingData.id} com Supabase:`, markingData);
                     await window.supabaseConfig.saveMarkings([markingData]);
                     console.log(`✅ Marcação ${markingData.id} sincronizada com Supabase`);
                 } catch (error) {
@@ -3152,6 +3209,16 @@ function setupGeolocationEventListeners() {
     const clearOldMarkingsBtn = document.getElementById('clear-old-markings');
     if (clearOldMarkingsBtn) {
         clearOldMarkingsBtn.addEventListener('click', clearOldMarkings);
+    }
+    
+    const debugSupabaseBtn = document.getElementById('debug-supabase');
+    if (debugSupabaseBtn) {
+        debugSupabaseBtn.addEventListener('click', debugSupabaseData);
+    }
+    
+    const testCircleBtn = document.getElementById('test-circle');
+    if (testCircleBtn) {
+        testCircleBtn.addEventListener('click', testCircleCreation);
     }
     
     const downloadOffline = document.getElementById('download-offline-pwa');
