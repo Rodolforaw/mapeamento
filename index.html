@@ -215,13 +215,13 @@
                 <h3>🖥️ Modo PC</h3>
                 <button class="btn btn-primary" id="manual-sync-pc">
                     🔄 Sincronizar Agora
-                </button>
+            </button>
                 <button class="btn btn-success" onclick="exportKMZ()">
                     📦 Exportar KMZ
-                </button>
+            </button>
                 <button class="btn btn-warning" onclick="exportExcel()">
                     📊 Exportar Excel
-                </button>
+            </button>
             </div>
             
             <!-- Modo PWA -->
@@ -229,10 +229,10 @@
                 <h3>📱 Modo PWA</h3>
                 <button class="btn btn-primary" id="download-offline-pwa">
                     📥 Baixar Dados
-                </button>
+            </button>
                 <button class="btn btn-success" id="upload-offline-pwa">
                     📤 Enviar Dados
-                </button>
+            </button>
             </div>
             
             <!-- Ferramentas -->
@@ -240,10 +240,10 @@
                 <h3>🛠️ Ferramentas</h3>
                 <button class="btn btn-warning" onclick="importKMZ()">
                     📁 Importar KMZ
-                </button>
+            </button>
                 <button class="btn btn-danger" onclick="clearAll()">
                     🗑️ Limpar Tudo
-                </button>
+            </button>
             </div>
         </div>
         
@@ -263,9 +263,9 @@
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script src="https://unpkg.com/leaflet-draw@1.0.4/dist/leaflet.draw.js"></script>
     <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
-    <script src="supabase_simples.js"></script>
-    <script src="app_simples.js"></script>
-    
+    <script src="supabase-config.js"></script>
+    <script src="app.js"></script>
+
     <script>
         // Detectar modo PWA
         function isPWAMode() {
