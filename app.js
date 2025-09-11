@@ -14,7 +14,7 @@ let isOnline = navigator.onLine;
 let offlineQueue = [];
 let syncInProgress = false;
 let lastSyncTime = 0;
-let syncCooldown = 2000; // 2 segundos de cooldown entre sincronizações
+let syncCooldown = 10000; // 10 segundos de cooldown entre sincronizações
 
 // Variáveis para o modal de marcação
 let currentLayer = null;
@@ -1857,7 +1857,11 @@ function syncNewMarkings() {
         // Adicionar apenas marcações novas
         let newMarkingsCount = 0;
         markings.forEach(marking => {
-            if (marking.action !== 'delete' && !existingIds.has(marking.id)) {
+            // Verificar se não foi excluída localmente
+            const localData = JSON.parse(localStorage.getItem('controle_obra_markings') || '[]');
+            const isLocallyDeleted = !localData.find(item => item.id === marking.id);
+            
+            if (marking.action !== 'delete' && !existingIds.has(marking.id) && !isLocallyDeleted) {
                 let layer = null;
                 
                 // Verificar se é marcação no formato antigo (com data) ou novo (direto)
@@ -1940,6 +1944,11 @@ function convertMarkingToGeoJSON(marking) {
     if (!marking.coordinates) return null;
     
     try {
+        // Se já tem data (formato antigo), usar diretamente
+        if (marking.data) {
+            return marking.data;
+        }
+        
         let geoJSON = {
             properties: {
                 popupContent: marking.properties?.name || marking.properties?.description || '',
@@ -1953,10 +1962,20 @@ function convertMarkingToGeoJSON(marking) {
             geoJSON.coordinates = [marking.coordinates.lng, marking.coordinates.lat];
         } else if (marking.type === 'polyline') {
             geoJSON.type = 'LineString';
-            geoJSON.coordinates = marking.coordinates.map(coord => [coord.lng, coord.lat]);
+            // Verificar se coordinates é array ou objeto
+            if (Array.isArray(marking.coordinates)) {
+                geoJSON.coordinates = marking.coordinates.map(coord => [coord.lng, coord.lat]);
+            } else {
+                geoJSON.coordinates = [[marking.coordinates.lng, marking.coordinates.lat]];
+            }
         } else if (marking.type === 'polygon') {
             geoJSON.type = 'Polygon';
-            geoJSON.coordinates = [marking.coordinates.map(coord => [coord.lng, coord.lat])];
+            // Verificar se coordinates é array ou objeto
+            if (Array.isArray(marking.coordinates)) {
+                geoJSON.coordinates = [marking.coordinates.map(coord => [coord.lng, coord.lat])];
+            } else {
+                geoJSON.coordinates = [[[marking.coordinates.lng, marking.coordinates.lat]]];
+            }
         } else if (marking.type === 'circle') {
             geoJSON.type = 'Point';
             geoJSON.coordinates = [marking.coordinates.lng, marking.coordinates.lat];
@@ -2150,7 +2169,7 @@ function setupRealTimeSync() {
         }, 100);
     });
     
-    // Sincronização automática com Supabase a cada 30 segundos
+    // Sincronização automática com Supabase a cada 2 minutos
     setInterval(async () => {
         if (isOnline && window.supabaseConfig) {
             try {
@@ -2159,7 +2178,7 @@ function setupRealTimeSync() {
                 console.error('❌ Erro na sincronização automática:', error);
             }
         }
-    }, 30000);
+    }, 120000);
     
     // Sincronizar quando voltar online
     window.addEventListener('online', () => {
@@ -2173,9 +2192,10 @@ function setupRealTimeSync() {
         }, 2000);
     });
     
-    // Sincronizar quando a página ganha foco (mudança de aba)
+    // Sincronizar quando a página ganha foco (mudança de aba) - apenas se passou muito tempo
     window.addEventListener('focus', () => {
-        if (isOnline && !syncInProgress && window.supabaseConfig) {
+        const timeSinceLastSync = Date.now() - lastSyncTime;
+        if (isOnline && !syncInProgress && window.supabaseConfig && timeSinceLastSync > 300000) { // 5 minutos
             console.log('👁️ Página em foco, verificando sincronização...');
             setTimeout(async () => {
                 await syncCrossContextData();
