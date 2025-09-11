@@ -917,13 +917,20 @@ function generateKML() {
     kml += `<name>Controle de Obra - Maricá</name>\n`;
     kml += `<description>Marcações exportadas do aplicativo de controle de obra</description>\n`;
     
-    // Estilos
+    // Estilos melhorados
     kml += `<Style id=\"blueMarker\">\n`;
     kml += `<IconStyle><Icon><href>http://maps.google.com/mapfiles/ms/icons/blue-dot.png</href></Icon></IconStyle>\n`;
+    kml += `</Style>\n`;
+    kml += `<Style id=\"orangeMarker\">\n`;
+    kml += `<IconStyle><Icon><href>http://maps.google.com/mapfiles/ms/icons/orange-dot.png</href></Icon></IconStyle>\n`;
     kml += `</Style>\n`;
     kml += `<Style id=\"bluePolygon\">\n`;
     kml += `<LineStyle><color>ff0000ff</color><width>3</width></LineStyle>\n`;
     kml += `<PolyStyle><color>4d0000ff</color></PolyStyle>\n`;
+    kml += `</Style>\n`;
+    kml += `<Style id=\"orangePolygon\">\n`;
+    kml += `<LineStyle><color>ff0080ff</color><width>3</width></LineStyle>\n`;
+    kml += `<PolyStyle><color>4d0080ff</color></PolyStyle>\n`;
     kml += `</Style>\n`;
     
     let placemarkIndex = 1;
@@ -933,7 +940,14 @@ function generateKML() {
         if (layer instanceof L.Circle && md && !md.radius) {
             md.radius = layer.getRadius();
         }
-        const placemarkName = md.osNumber ? `O.S.: ${md.osNumber} - ${md.product || 'Marcação'}` : `Marcação ${placemarkIndex}`;
+        
+        // Determinar se é marcação importada ou manual
+        const isUploaded = md.source === 'upload' || (layer._markingId && 
+            JSON.parse(localStorage.getItem('controle_obra_markings') || '[]')
+                .find(m => m.id === layer._markingId)?.properties?.source === 'upload');
+        
+        const placemarkName = md.osNumber ? `O.S.: ${md.osNumber} - ${md.product || 'Marcação'}` : 
+                             md.name || `Marcação ${placemarkIndex}`;
         const popupContent = (layer.getPopup && layer.getPopup()) ? layer.getPopup().getContent() : '';
         
         kml += `<Placemark>\n`;
@@ -947,12 +961,22 @@ function generateKML() {
             kml += buildExtendedDataXML(md);
         }
         
+        // Adicionar informações de origem
+        if (isUploaded) {
+            kml += `<ExtendedData>\n`;
+            kml += `<Data name=\"source\"><value>upload</value></Data>\n`;
+            if (md.fileName) {
+                kml += `<Data name=\"fileName\"><value>${xmlEscape(md.fileName)}</value></Data>\n`;
+            }
+            kml += `</ExtendedData>\n`;
+        }
+        
         if (layer instanceof L.Marker) {
-            kml += `<styleUrl>#blueMarker</styleUrl>\n`;
+            kml += `<styleUrl>#${isUploaded ? 'orange' : 'blue'}Marker</styleUrl>\n`;
             const latlng = layer.getLatLng();
             kml += `<Point><coordinates>${latlng.lng},${latlng.lat},0</coordinates></Point>\n`;
         } else if (layer instanceof L.Polygon || layer instanceof L.Rectangle) {
-            kml += `<styleUrl>#bluePolygon</styleUrl>\n`;
+            kml += `<styleUrl>#${isUploaded ? 'orange' : 'blue'}Polygon</styleUrl>\n`;
             const latlngs = layer.getLatLngs()[0];
             kml += `<Polygon><outerBoundaryIs><LinearRing><coordinates>`;
             latlngs.forEach(latlng => {
@@ -962,7 +986,7 @@ function generateKML() {
             kml += `${latlngs[0].lng},${latlngs[0].lat},0`;
             kml += `</coordinates></LinearRing></outerBoundaryIs></Polygon>\n`;
         } else if (layer instanceof L.Polyline) {
-            kml += `<styleUrl>#bluePolygon</styleUrl>\n`;
+            kml += `<styleUrl>#${isUploaded ? 'orange' : 'blue'}Polygon</styleUrl>\n`;
             const latlngs = layer.getLatLngs();
             kml += `<LineString><coordinates>`;
             latlngs.forEach(latlng => {
@@ -970,9 +994,15 @@ function generateKML() {
             });
             kml += `</coordinates></LineString>\n`;
         } else if (layer instanceof L.Circle) {
-            kml += `<styleUrl>#blueMarker</styleUrl>\n`;
+            kml += `<styleUrl>#${isUploaded ? 'orange' : 'blue'}Marker</styleUrl>\n`;
             const center = layer.getLatLng();
             kml += `<Point><coordinates>${center.lng},${center.lat},0</coordinates></Point>\n`;
+            // Adicionar raio como ExtendedData
+            if (md.radius) {
+                kml += `<ExtendedData>\n`;
+                kml += `<Data name=\"radius\"><value>${md.radius}</value></Data>\n`;
+                kml += `</ExtendedData>\n`;
+            }
         }
         
         kml += `</Placemark>\n`;
@@ -1363,71 +1393,78 @@ async function saveUploadedMarkings(markings, fileName) {
     }
 }
 
-// Analisar conteúdo KML
+// Analisar conteúdo KML (versão unificada)
 function parseKML(kmlContent) {
     try {
-        const parser = new DOMParser();
-        const xmlDoc = parser.parseFromString(kmlContent, 'text/xml');
-        
-        const placemarks = xmlDoc.getElementsByTagName('Placemark');
+        const markings = parseUploadedKMLContent(kmlContent, 'Importado');
         let importedCount = 0;
         
-        for (let i = 0; i < placemarks.length; i++) {
-            const placemark = placemarks[i];
-            const name = placemark.getElementsByTagName('name')[0]?.textContent || `Importado ${i + 1}`;
-            const description = placemark.getElementsByTagName('description')[0]?.textContent || '';
-            
-            // Processar pontos
-            const points = placemark.getElementsByTagName('Point');
-            if (points.length > 0) {
-                const coordinates = points[0].getElementsByTagName('coordinates')[0]?.textContent;
-                if (coordinates) {
-                    const coords = coordinates.trim().split(',');
-                    const lng = parseFloat(coords[0]);
-                    const lat = parseFloat(coords[1]);
+        for (const marking of markings) {
+            try {
+                // Criar camada a partir da marcação
+                let layer = null;
+                
+                if (marking.type === 'marker') {
+                    layer = L.marker([marking.coordinates.lat, marking.coordinates.lng], {
+                        icon: new L.Icon({
+                            iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-orange.png',
+                            shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png',
+                            iconSize: [25, 41],
+                            iconAnchor: [12, 41],
+                            popupAnchor: [1, -34],
+                            shadowSize: [41, 41]
+                        })
+                    });
+                } else if (marking.type === 'polygon') {
+                    const latlngs = marking.coordinates.map(coord => [coord.lat, coord.lng]);
+                    layer = L.polygon(latlngs, {
+                        color: '#FF9800',
+                        weight: 3,
+                        fillOpacity: 0.3
+                    });
+                } else if (marking.type === 'polyline') {
+                    const latlngs = marking.coordinates.map(coord => [coord.lat, coord.lng]);
+                    layer = L.polyline(latlngs, {
+                        color: '#FF9800',
+                        weight: 3
+                    });
+                }
+                
+                if (layer) {
+                    // Adicionar popup com informações
+                    const popupContent = `
+                        <h4>${marking.properties.name || 'Marcação Importada'}</h4>
+                        <p>${marking.properties.description || ''}</p>
+                        <p><small>Fonte: ${marking.properties.fileName || 'Importado'}</small></p>
+                    `;
+                    layer.bindPopup(popupContent);
                     
-                    const marker = L.marker([lat, lng]).bindPopup(`<h4>${name}</h4><p>${description}</p>`);
-                    drawnItems.addLayer(marker);
+                    // Adicionar ID da marcação
+                    layer._markingId = marking.id;
+                    
+                    // Salvar marcação no localStorage
+                    const markingData = {
+                        id: marking.id,
+                        type: marking.type,
+                        coordinates: marking.coordinates,
+                        properties: marking.properties,
+                        timestamp: marking.timestamp,
+                        lastModified: marking.lastModified,
+                        action: 'create',
+                        layerData: extractLayerData(layer),
+                        visualProperties: extractVisualProperties(layer)
+                    };
+                    
+                    // Adicionar ao localStorage
+                    const existingMarkings = JSON.parse(localStorage.getItem('controle_obra_markings') || '[]');
+                    existingMarkings.push(markingData);
+                    localStorage.setItem('controle_obra_markings', JSON.stringify(existingMarkings));
+                    
+                    drawnItems.addLayer(layer);
                     importedCount++;
                 }
-            }
-            
-            // Processar polígonos
-            const polygons = placemark.getElementsByTagName('Polygon');
-            if (polygons.length > 0) {
-                const coordinates = polygons[0].getElementsByTagName('coordinates')[0]?.textContent;
-                if (coordinates) {
-                    const coordPairs = coordinates.trim().split(' ');
-                    const latlngs = coordPairs.map(pair => {
-                        const coords = pair.split(',');
-                        return [parseFloat(coords[1]), parseFloat(coords[0])];
-                    }).filter(coord => !isNaN(coord[0]) && !isNaN(coord[1]));
-                    
-                    if (latlngs.length > 2) {
-                        const polygon = L.polygon(latlngs).bindPopup(`<h4>${name}</h4><p>${description}</p>`);
-                        drawnItems.addLayer(polygon);
-                        importedCount++;
-                    }
-                }
-            }
-            
-            // Processar linhas
-            const lineStrings = placemark.getElementsByTagName('LineString');
-            if (lineStrings.length > 0) {
-                const coordinates = lineStrings[0].getElementsByTagName('coordinates')[0]?.textContent;
-                if (coordinates) {
-                    const coordPairs = coordinates.trim().split(' ');
-                    const latlngs = coordPairs.map(pair => {
-                        const coords = pair.split(',');
-                        return [parseFloat(coords[1]), parseFloat(coords[0])];
-                    }).filter(coord => !isNaN(coord[0]) && !isNaN(coord[1]));
-                    
-                    if (latlngs.length > 1) {
-                        const polyline = L.polyline(latlngs).bindPopup(`<h4>${name}</h4><p>${description}</p>`);
-                        drawnItems.addLayer(polyline);
-                        importedCount++;
-                    }
-                }
+            } catch (error) {
+                console.error('Erro ao processar marcação individual:', error);
             }
         }
         
@@ -1621,7 +1658,11 @@ function saveMarking(layer, layerType) {
         type: layerType,
         data: layerToGeoJSON(layer),
         timestamp: new Date().toISOString(),
-        action: 'create'
+        action: 'create',
+        // Preservar dados da camada para recriação fiel
+        layerData: extractLayerData(layer),
+        // Preservar propriedades visuais
+        visualProperties: extractVisualProperties(layer)
     };
     
     // Adicionar ID à camada para referência futura
@@ -1864,12 +1905,15 @@ function syncNewMarkings() {
             if (marking.action !== 'delete' && !existingIds.has(marking.id) && !isLocallyDeleted) {
                 let layer = null;
                 
-                // Verificar se é marcação no formato antigo (com data) ou novo (direto)
-                if (marking.data) {
+                // Preservar a marcação original sem conversões desnecessárias
+                if (marking.layerData) {
+                    // Se já tem dados da camada preservados, usar diretamente
+                    layer = recreateLayerFromData(marking.layerData, marking.type);
+                } else if (marking.data) {
                     // Formato antigo com propriedade data
                     layer = geoJSONToLayer(marking.data, marking.type);
                 } else {
-                    // Formato novo - converter para GeoJSON
+                    // Formato novo - converter para GeoJSON preservando propriedades visuais
                     const geoJSON = convertMarkingToGeoJSON(marking);
                     if (geoJSON) {
                         layer = geoJSONToLayer(geoJSON, marking.type);
@@ -1878,6 +1922,10 @@ function syncNewMarkings() {
                 
                 if (layer) {
                     layer._markingId = marking.id;
+                    // Preservar propriedades visuais originais
+                    if (marking.visualProperties) {
+                        applyVisualProperties(layer, marking.visualProperties);
+                    }
                     drawnItems.addLayer(layer);
                     newMarkingsCount++;
                 }
@@ -1985,6 +2033,111 @@ function convertMarkingToGeoJSON(marking) {
         return geoJSON;
     } catch (error) {
         console.error('Erro ao converter marcação para GeoJSON:', error);
+        return null;
+    }
+}
+
+// Função para recriar camada a partir de dados preservados
+function recreateLayerFromData(layerData, type) {
+    try {
+        if (type === 'marker' || type === 'point') {
+            return L.marker([layerData.lat, layerData.lng], layerData.options || {});
+        } else if (type === 'circle') {
+            return L.circle([layerData.lat, layerData.lng], layerData.options || {});
+        } else if (type === 'polyline') {
+            return L.polyline(layerData.latlngs, layerData.options || {});
+        } else if (type === 'polygon') {
+            return L.polygon(layerData.latlngs, layerData.options || {});
+        }
+        return null;
+    } catch (error) {
+        console.error('Erro ao recriar camada:', error);
+        return null;
+    }
+}
+
+// Função para aplicar propriedades visuais preservadas
+function applyVisualProperties(layer, visualProperties) {
+    try {
+        if (visualProperties.color) {
+            layer.setStyle({ color: visualProperties.color });
+        }
+        if (visualProperties.fillColor) {
+            layer.setStyle({ fillColor: visualProperties.fillColor });
+        }
+        if (visualProperties.weight) {
+            layer.setStyle({ weight: visualProperties.weight });
+        }
+        if (visualProperties.opacity) {
+            layer.setStyle({ opacity: visualProperties.opacity });
+        }
+        if (visualProperties.fillOpacity) {
+            layer.setStyle({ fillOpacity: visualProperties.fillOpacity });
+        }
+        if (visualProperties.icon && layer.setIcon) {
+            layer.setIcon(visualProperties.icon);
+        }
+    } catch (error) {
+        console.error('Erro ao aplicar propriedades visuais:', error);
+    }
+}
+
+// Função para extrair propriedades visuais de uma camada
+function extractVisualProperties(layer) {
+    const properties = {};
+    
+    try {
+        if (layer.options) {
+            properties.color = layer.options.color;
+            properties.fillColor = layer.options.fillColor;
+            properties.weight = layer.options.weight;
+            properties.opacity = layer.options.opacity;
+            properties.fillOpacity = layer.options.fillOpacity;
+        }
+        
+        if (layer._icon && layer._icon.options) {
+            properties.icon = layer._icon;
+        }
+        
+        return properties;
+    } catch (error) {
+        console.error('Erro ao extrair propriedades visuais:', error);
+        return {};
+    }
+}
+
+// Função para extrair dados da camada para preservação
+function extractLayerData(layer) {
+    try {
+        if (layer instanceof L.Marker) {
+            const latlng = layer.getLatLng();
+            return {
+                lat: latlng.lat,
+                lng: latlng.lng,
+                options: layer.options || {}
+            };
+        } else if (layer instanceof L.Circle) {
+            const center = layer.getLatLng();
+            return {
+                lat: center.lat,
+                lng: center.lng,
+                radius: layer.getRadius(),
+                options: layer.options || {}
+            };
+        } else if (layer instanceof L.Polyline) {
+            return {
+                latlngs: layer.getLatLngs(),
+                options: layer.options || {}
+            };
+        } else if (layer instanceof L.Polygon || layer instanceof L.Rectangle) {
+            return {
+                latlngs: layer.getLatLngs()[0],
+                options: layer.options || {}
+            };
+        }
+        return null;
+    } catch (error) {
+        console.error('Erro ao extrair dados da camada:', error);
         return null;
     }
 }
