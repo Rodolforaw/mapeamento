@@ -13,6 +13,8 @@ let isSatelliteMode = true;
 let isOnline = navigator.onLine;
 let offlineQueue = [];
 let syncInProgress = false;
+let lastSyncTime = 0;
+let syncCooldown = 5000; // 5 segundos de cooldown entre sincronizações
 
 // Variáveis para o modal de marcação
 let currentLayer = null;
@@ -22,6 +24,11 @@ let markingModal = null;
 let userLocationMarker = null;
 let watchId = null;
 let isTrackingLocation = false;
+
+// Variáveis para rastreamento de dispositivos
+let deviceLocations = {}; // Estrutura: { deviceId: { lat, lng, timestamp, deviceName } }
+let deviceMarkers = {}; // Marcadores dos dispositivos no mapa
+let isTrackingDevices = false;
 
 // Variáveis para gerenciamento de obras
 let worksData = {}; // Estrutura: { osNumber: { product, markings: [], lastUpdate } }
@@ -38,9 +45,196 @@ async function waitForSupabase(maxAttempts = 10, delay = 500) {
     return false;
 }
 
+// Controlar sincronização para evitar loops
+function canSync() {
+    const now = Date.now();
+    const timeSinceLastSync = now - lastSyncTime;
+    
+    if (syncInProgress) {
+        console.log('⏸️ Sincronização já em andamento, pulando...');
+        return false;
+    }
+    
+    if (timeSinceLastSync < syncCooldown) {
+        console.log(`⏸️ Cooldown ativo, aguardando ${Math.ceil((syncCooldown - timeSinceLastSync) / 1000)}s...`);
+        return false;
+    }
+    
+    return true;
+}
+
+// Marcar início da sincronização
+function startSync() {
+    syncInProgress = true;
+    lastSyncTime = Date.now();
+}
+
+// Marcar fim da sincronização
+function endSync() {
+    syncInProgress = false;
+}
+
+// Função para obter ID único do dispositivo
+function getDeviceId() {
+    let deviceId = localStorage.getItem('device_id');
+    if (!deviceId) {
+        deviceId = 'device_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+        localStorage.setItem('device_id', deviceId);
+    }
+    return deviceId;
+}
+
+// Função para obter nome do dispositivo
+function getDeviceName() {
+    const isPWA = window.matchMedia('(display-mode: standalone)').matches || 
+                  window.navigator.standalone === true || 
+                  document.referrer.includes('android-app://');
+    
+    const deviceType = isPWA ? 'PWA' : 'Desktop';
+    const userAgent = navigator.userAgent;
+    
+    if (userAgent.includes('Mobile')) {
+        return `${deviceType} Mobile`;
+    } else if (userAgent.includes('Tablet')) {
+        return `${deviceType} Tablet`;
+    } else {
+        return `${deviceType} PC`;
+    }
+}
+
+// Função para enviar localização atual para o Supabase
+async function sendLocationToSupabase(lat, lng) {
+    if (!window.supabaseConfig || !window.supabaseConfig.supabaseClient) return;
+    
+    try {
+        const deviceId = getDeviceId();
+        const deviceName = getDeviceName();
+        
+        const locationData = {
+            device_id: deviceId,
+            device_name: deviceName,
+            latitude: lat,
+            longitude: lng,
+            timestamp: Date.now(),
+            is_pwa: window.matchMedia('(display-mode: standalone)').matches || 
+                    window.navigator.standalone === true || 
+                    document.referrer.includes('android-app://')
+        };
+        
+        const { error } = await window.supabaseConfig.supabaseClient
+            .from('device_locations')
+            .upsert(locationData, { 
+                onConflict: 'device_id',
+                ignoreDuplicates: false 
+            });
+        
+        if (error) {
+            console.error('❌ Erro ao enviar localização:', error);
+        } else {
+            console.log('📍 Localização enviada para o Supabase');
+        }
+        
+    } catch (error) {
+        console.error('❌ Erro ao enviar localização:', error);
+    }
+}
+
+// Função para carregar localizações dos dispositivos do Supabase
+async function loadDeviceLocations() {
+    if (!window.supabaseConfig || !window.supabaseConfig.supabaseClient) return;
+    
+    try {
+        const { data, error } = await window.supabaseConfig.supabaseClient
+            .from('device_locations')
+            .select('*')
+            .gte('timestamp', Date.now() - 300000) // Últimos 5 minutos
+            .order('timestamp', { ascending: false });
+        
+        if (error) {
+            console.error('❌ Erro ao carregar localizações:', error);
+            return;
+        }
+        
+        // Atualizar localizações dos dispositivos
+        deviceLocations = {};
+        data.forEach(location => {
+            deviceLocations[location.device_id] = {
+                lat: location.latitude,
+                lng: location.longitude,
+                timestamp: location.timestamp,
+                deviceName: location.device_name,
+                isPWA: location.is_pwa
+            };
+        });
+        
+        // Atualizar marcadores no mapa
+        updateDeviceMarkers();
+        
+        console.log(`📍 Carregadas ${Object.keys(deviceLocations).length} localizações de dispositivos`);
+        
+    } catch (error) {
+        console.error('❌ Erro ao carregar localizações dos dispositivos:', error);
+    }
+}
+
+// Função para atualizar marcadores dos dispositivos no mapa
+function updateDeviceMarkers() {
+    // Remover marcadores antigos
+    Object.values(deviceMarkers).forEach(marker => {
+        map.removeLayer(marker);
+    });
+    deviceMarkers = {};
+    
+    // Adicionar novos marcadores
+    Object.entries(deviceLocations).forEach(([deviceId, location]) => {
+        const isCurrentDevice = deviceId === getDeviceId();
+        
+        // Não mostrar marcador do próprio dispositivo
+        if (isCurrentDevice) return;
+        
+        const marker = L.marker([location.lat, location.lng], {
+            icon: L.divIcon({
+                className: 'device-location-marker',
+                html: `<div class="device-marker ${location.isPWA ? 'pwa' : 'desktop'}">
+                    <div class="device-icon">${location.isPWA ? '📱' : '💻'}</div>
+                    <div class="device-pulse"></div>
+                </div>`,
+                iconSize: [30, 30],
+                iconAnchor: [15, 15]
+            })
+        });
+        
+        marker.bindPopup(`
+            <div class="device-popup">
+                <h4>${location.deviceName}</h4>
+                <p><strong>Última atualização:</strong> ${new Date(location.timestamp).toLocaleString()}</p>
+                <p><strong>Tipo:</strong> ${location.isPWA ? 'PWA' : 'Desktop'}</p>
+                <button onclick="centerOnDevice('${deviceId}')" class="center-device-btn">Centralizar</button>
+            </div>
+        `);
+        
+        marker.addTo(map);
+        deviceMarkers[deviceId] = marker;
+    });
+}
+
+// Função para centralizar no dispositivo
+function centerOnDevice(deviceId) {
+    const location = deviceLocations[deviceId];
+    if (location) {
+        map.setView([location.lat, location.lng], 16);
+    }
+}
+
 // Sincronizar dados entre contextos diferentes (PWA vs Desktop)
 async function syncCrossContextData() {
     try {
+        // Verificar se pode sincronizar
+        if (!canSync()) {
+            return false;
+        }
+        
+        startSync();
         console.log('🔄 Iniciando sincronização entre contextos...');
         
         const isPWA = window.matchMedia('(display-mode: standalone)').matches || 
@@ -53,6 +247,7 @@ async function syncCrossContextData() {
         const supabaseReady = await waitForSupabase();
         if (!supabaseReady) {
             console.log('⚠️ Supabase não inicializado após aguardar, pulando sincronização');
+            endSync();
             return false;
         }
         
@@ -92,6 +287,7 @@ async function syncCrossContextData() {
                     // Configurar sincronização em tempo real
                     setupRealTimeSync();
                     
+                    endSync();
                     return true;
                 } else {
                     console.log('ℹ️ Nenhuma marcação encontrada no Supabase');
@@ -101,19 +297,23 @@ async function syncCrossContextData() {
                         await window.supabaseConfig.saveMarkings(localMarkings);
                         showNotification('📤 Dados locais enviados para o Supabase', 'info');
                     }
+                    endSync();
                 }
             } catch (error) {
                 console.error('❌ Erro ao sincronizar com Supabase:', error);
                 showNotification('⚠️ Erro na sincronização com Supabase', 'warning');
+                endSync();
             }
         } else {
             console.log('⚠️ Supabase não disponível');
             showNotification('⚠️ Supabase não configurado', 'warning');
+            endSync();
         }
         
     } catch (error) {
         console.error('❌ Erro na sincronização entre contextos:', error);
         showNotification('❌ Erro na sincronização', 'error');
+        endSync();
     }
 }
 
@@ -1671,10 +1871,10 @@ function syncNewMarkings() {
 
 // Função para sincronização automática com Supabase
 async function autoSyncWithSupabase() {
-    if (!window.supabaseConfig || syncInProgress) return;
+    if (!window.supabaseConfig || !canSync()) return;
     
     try {
-        syncInProgress = true;
+        startSync();
         console.log('🔄 Sincronização automática com Supabase...');
         
         // Carregar dados locais
@@ -1705,10 +1905,15 @@ async function autoSyncWithSupabase() {
             }
         }
         
+        // Carregar localizações dos dispositivos se estiver ativo
+        if (isTrackingDevices) {
+            await loadDeviceLocations();
+        }
+        
     } catch (error) {
         console.error('❌ Erro na sincronização automática com Supabase:', error);
     } finally {
-        syncInProgress = false;
+        endSync();
     }
 }
 
@@ -1927,17 +2132,16 @@ function setupRealTimeSync() {
         }, 100);
     });
     
-    // Sincronização automática com Supabase a cada 15 segundos
+    // Sincronização automática com Supabase a cada 60 segundos
     setInterval(async () => {
-        if (isOnline && !syncInProgress && window.supabaseConfig) {
+        if (isOnline && window.supabaseConfig) {
             try {
-                console.log('🔄 Sincronização automática com Supabase...');
-                await syncCrossContextData();
+                await autoSyncWithSupabase();
             } catch (error) {
                 console.error('❌ Erro na sincronização automática:', error);
             }
         }
-    }, 15000);
+    }, 60000);
     
     // Sincronizar quando voltar online
     window.addEventListener('online', () => {
@@ -2280,6 +2484,11 @@ function setupGeolocationEventListeners() {
     if (locationBtn) {
         locationBtn.addEventListener('click', toggleLocationTracking);
     }
+    
+    const devicesBtn = document.getElementById('devices-toggle');
+    if (devicesBtn) {
+        devicesBtn.addEventListener('click', toggleDeviceTracking);
+    }
 }
 
 // Alternar rastreamento de localização
@@ -2289,6 +2498,66 @@ function toggleLocationTracking() {
     } else {
         startLocationTracking();
     }
+}
+
+// Alternar rastreamento de dispositivos
+function toggleDeviceTracking() {
+    if (isTrackingDevices) {
+        stopDeviceTracking();
+    } else {
+        startDeviceTracking();
+    }
+}
+
+// Iniciar rastreamento de dispositivos
+function startDeviceTracking() {
+    if (!window.supabaseConfig || !window.supabaseConfig.supabaseClient) {
+        showNotification('Supabase não disponível para rastreamento de dispositivos', 'error');
+        return;
+    }
+    
+    isTrackingDevices = true;
+    
+    // Carregar localizações iniciais
+    loadDeviceLocations();
+    
+    // Atualizar a cada 30 segundos
+    const deviceInterval = setInterval(() => {
+        if (isTrackingDevices) {
+            loadDeviceLocations();
+        } else {
+            clearInterval(deviceInterval);
+        }
+    }, 30000);
+    
+    // Atualizar botão
+    const devicesBtn = document.getElementById('devices-toggle');
+    if (devicesBtn) {
+        devicesBtn.classList.add('active');
+        devicesBtn.innerHTML = '📱 Ocultar Dispositivos';
+    }
+    
+    showNotification('Rastreamento de dispositivos ativado!', 'success');
+}
+
+// Parar rastreamento de dispositivos
+function stopDeviceTracking() {
+    isTrackingDevices = false;
+    
+    // Remover marcadores dos dispositivos
+    Object.values(deviceMarkers).forEach(marker => {
+        map.removeLayer(marker);
+    });
+    deviceMarkers = {};
+    
+    // Atualizar botão
+    const devicesBtn = document.getElementById('devices-toggle');
+    if (devicesBtn) {
+        devicesBtn.classList.remove('active');
+        devicesBtn.innerHTML = '📱 Dispositivos Online';
+    }
+    
+    showNotification('Rastreamento de dispositivos desativado!', 'info');
 }
 
 // Iniciar rastreamento de localização
@@ -2345,10 +2614,13 @@ function stopLocationTracking() {
 }
 
 // Atualizar localização do usuário
-function updateUserLocation(position) {
+async function updateUserLocation(position) {
     const lat = position.coords.latitude;
     const lng = position.coords.longitude;
     const accuracy = position.coords.accuracy;
+    
+    // Enviar localização para o Supabase
+    await sendLocationToSupabase(lat, lng);
     
     // Remover marcador anterior se existir
     if (userLocationMarker) {
