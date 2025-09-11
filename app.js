@@ -2036,8 +2036,8 @@ function loadOfflineData() {
         if (savedMarkings) {
             const markings = JSON.parse(savedMarkings);
             markings.forEach(marking => {
-                if (marking.action !== 'delete') {
-                    const layer = geoJSONToLayer(marking.data, marking.type);
+                if (marking.action !== 'delete' && marking.layerData) {
+                    const layer = recreateLayerFromData(marking.layerData, marking.type);
                     if (layer) {
                         layer._markingId = marking.id;
                         drawnItems.addLayer(layer);
@@ -2078,13 +2078,10 @@ function syncNewMarkings() {
             if (marking.action !== 'delete' && !existingIds.has(marking.id) && !isLocallyDeleted) {
                 let layer = null;
                 
-                // Priorizar dados preservados da camada para manter formato original
+                // Usar apenas dados preservados da camada para manter formato original
                 if (marking.layerData) {
                     console.log(`🔄 Recriando marcação ${marking.id} do tipo ${marking.type} com dados preservados`);
                     layer = recreateLayerFromData(marking.layerData, marking.type);
-                } else if (marking.data) {
-                    console.log(`🔄 Recriando marcação ${marking.id} do tipo ${marking.type} com GeoJSON`);
-                    layer = geoJSONToLayer(marking.data, marking.type);
                 } else {
                     console.log(`⚠️ Marcação ${marking.id} sem dados preservados, pulando...`);
                 }
@@ -2196,6 +2193,23 @@ function clearOldMarkings() {
     localStorage.removeItem('controle_obra_markings');
     console.log('✅ Marcações antigas removidas');
     showNotification('Marcações antigas removidas. Desenhe novas marcações para testar.', 'info');
+}
+
+// Função para limpar todas as marcações e recarregar apenas com dados preservados
+function clearAllAndReload() {
+    console.log('🗑️ Limpando todas as marcações do mapa...');
+    
+    // Limpar todas as camadas do mapa
+    drawnItems.clearLayers();
+    
+    // Limpar localStorage
+    localStorage.removeItem('controle_obra_markings');
+    
+    // Recarregar apenas marcações com dados preservados
+    loadOfflineData();
+    
+    console.log('✅ Mapa limpo e recarregado apenas com dados preservados');
+    showNotification('Mapa limpo! Apenas marcações com dados preservados serão exibidas.', 'info');
 }
 
 // Função para debug dos dados do Supabase
@@ -2526,7 +2540,7 @@ function recreateLayerFromData(layerData, type) {
                 );
                 console.log(`⬜ Recriando retângulo com bounds: ${bounds.toString()}`);
                 return L.rectangle(bounds, layerData.options || {});
-            } else if (layerData.latlngs && layerData.latlngs.length === 2) {
+            } else if (layerData.latlngs && layerData.latlngs.length >= 2) {
                 // Usar coordenadas preservadas
                 const bounds = L.latLngBounds(layerData.latlngs);
                 console.log(`⬜ Recriando retângulo com coordenadas: ${bounds.toString()}`);
@@ -3282,6 +3296,11 @@ function setupGeolocationEventListeners() {
     const testAllShapesBtn = document.getElementById('test-all-shapes');
     if (testAllShapesBtn) {
         testAllShapesBtn.addEventListener('click', testAllShapes);
+    }
+    
+    const clearAllReloadBtn = document.getElementById('clear-all-reload');
+    if (clearAllReloadBtn) {
+        clearAllReloadBtn.addEventListener('click', clearAllAndReload);
     }
     
     const downloadOffline = document.getElementById('download-offline-pwa');
