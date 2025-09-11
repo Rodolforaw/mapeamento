@@ -26,6 +26,18 @@ let isTrackingLocation = false;
 // Variáveis para gerenciamento de obras
 let worksData = {}; // Estrutura: { osNumber: { product, markings: [], lastUpdate } }
 
+// Aguardar inicialização do Supabase
+async function waitForSupabase(maxAttempts = 10, delay = 500) {
+    for (let i = 0; i < maxAttempts; i++) {
+        if (window.supabaseConfig && window.supabaseConfig.supabaseClient) {
+            return true;
+        }
+        console.log(`⏳ Aguardando Supabase... tentativa ${i + 1}/${maxAttempts}`);
+        await new Promise(resolve => setTimeout(resolve, delay));
+    }
+    return false;
+}
+
 // Sincronizar dados entre contextos diferentes (PWA vs Desktop)
 async function syncCrossContextData() {
     try {
@@ -37,7 +49,14 @@ async function syncCrossContextData() {
         
         console.log(`📱 Contexto atual: ${isPWA ? 'PWA' : 'Desktop'}`);
         
-        // Sempre tentar sincronizar com Supabase primeiro
+        // Aguardar Supabase estar inicializado
+        const supabaseReady = await waitForSupabase();
+        if (!supabaseReady) {
+            console.log('⚠️ Supabase não inicializado após aguardar, pulando sincronização');
+            return false;
+        }
+        
+        // Verificar se Supabase está inicializado antes de sincronizar
         if (window.supabaseConfig && window.supabaseConfig.loadMarkings) {
             console.log('📡 Sincronizando com Supabase...');
             
@@ -225,10 +244,15 @@ document.addEventListener('DOMContentLoaded', function() {
     const allKeys = Object.keys(localStorage).filter(key => key.includes('controle_obra'));
     console.log('- Chaves do localStorage:', allKeys);
     
-    // Tentar sincronizar dados entre contextos diferentes
-    syncCrossContextData().then(() => {
-        console.log('✅ Sincronização inicial concluída');
-    });
+    // Aguardar inicialização do Supabase antes de sincronizar
+    setTimeout(async () => {
+        try {
+            await syncCrossContextData();
+            console.log('✅ Sincronização inicial concluída');
+        } catch (error) {
+            console.error('❌ Erro na sincronização inicial:', error);
+        }
+    }, 3000); // Aguardar 3 segundos para o Supabase inicializar
     
     initializeMap();
     setupEventListeners();
@@ -246,7 +270,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 if (window.supabaseConfig.setupSync) {
                     window.supabaseConfig.setupSync();
                 }
-            }, 2000);
+            }, 1000);
         } else {
             console.log('⚠️ Falha ao inicializar Supabase');
         }
