@@ -14,7 +14,7 @@ let isOnline = navigator.onLine;
 let offlineQueue = [];
 let syncInProgress = false;
 let lastSyncTime = 0;
-let syncCooldown = 5000; // 5 segundos de cooldown entre sincronizações
+let syncCooldown = 2000; // 2 segundos de cooldown entre sincronizações
 
 // Variáveis para o modal de marcação
 let currentLayer = null;
@@ -2132,7 +2132,7 @@ function setupRealTimeSync() {
         }, 100);
     });
     
-    // Sincronização automática com Supabase a cada 60 segundos
+    // Sincronização automática com Supabase a cada 30 segundos
     setInterval(async () => {
         if (isOnline && window.supabaseConfig) {
             try {
@@ -2141,7 +2141,7 @@ function setupRealTimeSync() {
                 console.error('❌ Erro na sincronização automática:', error);
             }
         }
-    }, 60000);
+    }, 30000);
     
     // Sincronizar quando voltar online
     window.addEventListener('online', () => {
@@ -3317,6 +3317,23 @@ if ('serviceWorker' in navigator) {
         navigator.serviceWorker.register('sw.js')
             .then(function(registration) {
                 console.log('ServiceWorker registrado com sucesso:', registration.scope);
+                
+                // Verificar se há atualizações
+                registration.addEventListener('updatefound', function() {
+                    console.log('Nova versão do Service Worker encontrada!');
+                    const newWorker = registration.installing;
+                    
+                    newWorker.addEventListener('statechange', function() {
+                        if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                            console.log('Nova versão instalada, recarregando...');
+                            // Forçar recarregamento para aplicar nova versão
+                            window.location.reload();
+                        }
+                    });
+                });
+                
+                // Forçar verificação de atualizações
+                registration.update();
             })
             .catch(function(error) {
                 console.log('Falha ao registrar ServiceWorker:', error);
