@@ -121,6 +121,10 @@ function initializeMap() {
 
 // Inicializar event listeners
 function initializeEventListeners() {
+    // Menu hambúrguer
+    document.getElementById('menuToggle').addEventListener('click', toggleSideMenu);
+    document.getElementById('closeMenu').addEventListener('click', toggleSideMenu);
+    
     // Controle de camada
     document.getElementById('layerSelect').addEventListener('change', function(e) {
         const layer = e.target.value;
@@ -138,6 +142,12 @@ function initializeEventListeners() {
     
     // Input de arquivo
     document.getElementById('fileInput').addEventListener('change', handleFileImport);
+}
+
+// Alternar menu lateral
+function toggleSideMenu() {
+    const sideMenu = document.getElementById('sideMenu');
+    sideMenu.classList.toggle('open');
 }
 
 // Mudar camada do mapa
@@ -337,6 +347,12 @@ function generateKMLPlacemark(work) {
 // Parsear KML
 async function parseKML(kmlContent) {
     return new Promise((resolve, reject) => {
+        // Verificar se xml2js está disponível
+        if (typeof xml2js === 'undefined') {
+            reject(new Error('xml2js não está carregado. Recarregue a página.'));
+            return;
+        }
+        
         const parser = new xml2js.Parser();
         parser.parseString(kmlContent, (err, result) => {
             if (err) {
