@@ -43,6 +43,157 @@
             font-size: 14px;
         }
         
+        .kmz-controls {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 1000;
+            display: flex;
+            gap: 5px;
+        }
+        
+        .kmz-btn {
+            width: 35px;
+            height: 35px;
+            border: none;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.9);
+            color: #6d28d9;
+            font-size: 14px;
+            cursor: pointer;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+            transition: all 0.2s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .kmz-btn:hover {
+            background: #6d28d9;
+            color: white;
+            transform: scale(1.1);
+        }
+        
+        /* Modal */
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            z-index: 2000;
+        }
+        
+        .modal.show {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .modal-content {
+            background: white;
+            border-radius: 10px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+            max-width: 500px;
+            width: 90%;
+            max-height: 90vh;
+            overflow-y: auto;
+        }
+        
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 20px;
+            border-bottom: 1px solid #eee;
+        }
+        
+        .modal-header h3 {
+            margin: 0;
+            color: #333;
+        }
+        
+        .close-btn {
+            background: none;
+            border: none;
+            font-size: 24px;
+            cursor: pointer;
+            color: #999;
+        }
+        
+        .close-btn:hover {
+            color: #333;
+        }
+        
+        .modal-body {
+            padding: 20px;
+        }
+        
+        .modal-footer {
+            display: flex;
+            justify-content: flex-end;
+            gap: 10px;
+            padding: 20px;
+            border-top: 1px solid #eee;
+        }
+        
+        .form-group {
+            margin-bottom: 15px;
+        }
+        
+        .form-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: 500;
+            color: #333;
+        }
+        
+        .form-group input,
+        .form-group textarea {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            font-size: 14px;
+            box-sizing: border-box;
+        }
+        
+        .form-group input:focus,
+        .form-group textarea:focus {
+            outline: none;
+            border-color: #6d28d9;
+            box-shadow: 0 0 0 2px rgba(109, 40, 217, 0.1);
+        }
+        
+        .btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 5px;
+            font-size: 14px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+        
+        .btn-primary {
+            background: #6d28d9;
+            color: white;
+        }
+        
+        .btn-primary:hover {
+            background: #5b21b6;
+        }
+        
+        .btn-secondary {
+            background: #6b7280;
+            color: white;
+        }
+        
+        .btn-secondary:hover {
+            background: #4b5563;
+        }
+        
         .toast {
             position: fixed;
             top: 80px;
@@ -85,10 +236,57 @@
         </select>
     </div>
     
+    <!-- Botões discretos para KMZ -->
+    <div class="kmz-controls">
+        <button id="importBtn" class="kmz-btn" title="Importar KMZ">
+            <i class="fas fa-upload"></i>
+            </button>
+        <button id="exportBtn" class="kmz-btn" title="Exportar KMZ">
+            <i class="fas fa-download"></i>
+            </button>
+            </div>
+    
     
     
     <!-- Toast de notificação -->
     <div id="toast" class="toast"></div>
+    
+    <!-- Modal para informações da obra -->
+    <div id="workModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Informações da Obra</h3>
+                <button class="close-btn" id="closeModal">&times;</button>
+            </div>
+            <div class="modal-body">
+                <form id="workForm">
+                    <div class="form-group">
+                        <label for="workNumber">Número da OS:</label>
+                        <input type="text" id="workNumber" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="workProduct">Produto:</label>
+                        <input type="text" id="workProduct" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="workMeasure">Medida:</label>
+                        <input type="text" id="workMeasure" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="workObservation">Observação:</label>
+                        <textarea id="workObservation" rows="3"></textarea>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" id="cancelWork">Cancelar</button>
+                <button type="button" class="btn btn-primary" id="saveWork">Salvar</button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Input para importação de arquivos -->
+    <input type="file" id="fileInput" accept=".kmz" style="display: none;">
     
     <!-- Scripts -->
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
