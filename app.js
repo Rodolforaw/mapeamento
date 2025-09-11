@@ -1941,7 +1941,7 @@ async function autoSyncWithSupabase() {
 
 // Converter marcação para formato GeoJSON
 function convertMarkingToGeoJSON(marking) {
-    if (!marking.coordinates) return null;
+    if (!marking.coordinates && !marking.data) return null;
     
     try {
         // Se já tem data (formato antigo), usar diretamente
@@ -1959,12 +1959,29 @@ function convertMarkingToGeoJSON(marking) {
         
         if (marking.type === 'marker') {
             geoJSON.type = 'Point';
-            geoJSON.coordinates = [marking.coordinates.lng, marking.coordinates.lat];
+            if (marking.coordinates && marking.coordinates.lng !== undefined && marking.coordinates.lat !== undefined) {
+                geoJSON.coordinates = [marking.coordinates.lng, marking.coordinates.lat];
+            } else {
+                console.warn('Coordenadas inválidas para marcador:', marking.coordinates);
+                return null;
+            }
         } else if (marking.type === 'polyline') {
             geoJSON.type = 'LineString';
             // Verificar se coordinates é array ou objeto
             if (Array.isArray(marking.coordinates)) {
-                geoJSON.coordinates = marking.coordinates.map(coord => [coord.lng, coord.lat]);
+                geoJSON.coordinates = marking.coordinates.map(coord => {
+                    // Se coord já é um array [lng, lat], usar diretamente
+                    if (Array.isArray(coord)) {
+                        return coord;
+                    }
+                    // Se coord é um objeto {lat, lng}, converter
+                    if (coord && typeof coord === 'object' && coord.lng !== undefined && coord.lat !== undefined) {
+                        return [coord.lng, coord.lat];
+                    }
+                    // Fallback para coordenadas inválidas
+                    console.warn('Coordenada inválida encontrada:', coord);
+                    return [0, 0];
+                });
             } else {
                 geoJSON.coordinates = [[marking.coordinates.lng, marking.coordinates.lat]];
             }
@@ -1972,7 +1989,19 @@ function convertMarkingToGeoJSON(marking) {
             geoJSON.type = 'Polygon';
             // Verificar se coordinates é array ou objeto
             if (Array.isArray(marking.coordinates)) {
-                geoJSON.coordinates = [marking.coordinates.map(coord => [coord.lng, coord.lat])];
+                geoJSON.coordinates = [marking.coordinates.map(coord => {
+                    // Se coord já é um array [lng, lat], usar diretamente
+                    if (Array.isArray(coord)) {
+                        return coord;
+                    }
+                    // Se coord é um objeto {lat, lng}, converter
+                    if (coord && typeof coord === 'object' && coord.lng !== undefined && coord.lat !== undefined) {
+                        return [coord.lng, coord.lat];
+                    }
+                    // Fallback para coordenadas inválidas
+                    console.warn('Coordenada inválida encontrada:', coord);
+                    return [0, 0];
+                })];
             } else {
                 geoJSON.coordinates = [[[marking.coordinates.lng, marking.coordinates.lat]]];
             }
