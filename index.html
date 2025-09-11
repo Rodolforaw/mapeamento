@@ -1,0 +1,602 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Controle de Obra - Simplificado</title>
+    
+    <!-- PWA Meta Tags -->
+    <meta name="theme-color" content="#007bff">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <meta name="apple-mobile-web-app-title" content="Controle de Obra">
+    
+    <!-- Leaflet CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet-draw@1.0.4/dist/leaflet.draw.css" />
+    
+    <!-- Estilos -->
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: Arial, sans-serif;
+            background: #f5f5f5;
+            overflow: hidden;
+        }
+        
+        .container {
+            display: flex;
+            height: 100vh;
+        }
+        
+        /* Sidebar para PC */
+        .sidebar {
+            width: 300px;
+            background: white;
+            border-right: 1px solid #ddd;
+            padding: 20px;
+            overflow-y: auto;
+        }
+        
+        /* Menu hambúrguer para PWA */
+        .hamburger-menu {
+            position: fixed;
+            top: 15px;
+            left: 15px;
+            z-index: 10000;
+        }
+        
+        .hamburger-btn {
+            width: 50px;
+            height: 50px;
+            background: #007bff;
+            border: none;
+            border-radius: 50%;
+            cursor: pointer;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+            transition: all 0.3s;
+        }
+        
+        .hamburger-btn:hover {
+            background: #0056b3;
+            transform: scale(1.05);
+        }
+        
+        .hamburger-btn span {
+            width: 20px;
+            height: 3px;
+            background: white;
+            margin: 2px 0;
+            transition: all 0.3s;
+        }
+        
+        .hamburger-btn.active span:nth-child(1) {
+            transform: rotate(45deg) translate(5px, 5px);
+        }
+        
+        .hamburger-btn.active span:nth-child(2) {
+            opacity: 0;
+        }
+        
+        .hamburger-btn.active span:nth-child(3) {
+            transform: rotate(-45deg) translate(7px, -6px);
+        }
+        
+        /* Menu lateral PWA */
+        .pwa-menu {
+            position: fixed;
+            top: 0;
+            left: -350px;
+            width: 350px;
+            height: 100vh;
+            background: white;
+            z-index: 9999;
+            transition: left 0.3s ease;
+            overflow-y: auto;
+            box-shadow: 2px 0 10px rgba(0,0,0,0.1);
+        }
+        
+        .pwa-menu.open {
+            left: 0;
+        }
+        
+        .menu-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 20px;
+            background: #007bff;
+            color: white;
+        }
+        
+        .menu-header h3 {
+            margin: 0;
+        }
+        
+        .close-menu {
+            background: none;
+            border: none;
+            color: white;
+            font-size: 24px;
+            cursor: pointer;
+            padding: 5px;
+        }
+        
+        .menu-section {
+            padding: 20px;
+            border-bottom: 1px solid #eee;
+        }
+        
+        .menu-section h4 {
+            margin-bottom: 15px;
+            color: #333;
+            font-size: 16px;
+        }
+        
+        .map-container {
+            flex: 1;
+            position: relative;
+        }
+        
+        #map {
+            width: 100%;
+            height: 100%;
+        }
+        
+        .status-bar {
+            position: absolute;
+            top: 15px;
+            right: 15px;
+            background: white;
+            padding: 10px 15px;
+            border-radius: 25px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            z-index: 1000;
+        }
+        
+        .connection-status {
+            padding: 5px 10px;
+            border-radius: 15px;
+            font-size: 12px;
+            font-weight: bold;
+        }
+        
+        .connection-status.online {
+            background: #d4edda;
+            color: #155724;
+        }
+        
+        .connection-status.offline {
+            background: #f8d7da;
+            color: #721c24;
+        }
+        
+        .btn {
+            width: 100%;
+            padding: 12px;
+            margin: 5px 0;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: bold;
+            transition: all 0.3s;
+        }
+        
+        .btn-primary {
+            background: #007bff;
+            color: white;
+        }
+        
+        .btn-primary:hover {
+            background: #0056b3;
+        }
+        
+        .btn-success {
+            background: #28a745;
+            color: white;
+        }
+        
+        .btn-success:hover {
+            background: #218838;
+        }
+        
+        .btn-warning {
+            background: #ffc107;
+            color: #212529;
+        }
+        
+        .btn-warning:hover {
+            background: #e0a800;
+        }
+        
+        .btn-danger {
+            background: #dc3545;
+            color: white;
+        }
+        
+        .btn-danger:hover {
+            background: #c82333;
+        }
+        
+        .section {
+            margin: 20px 0;
+            padding: 15px;
+            background: #f8f9fa;
+            border-radius: 8px;
+        }
+        
+        .section h3 {
+            margin-bottom: 10px;
+            color: #333;
+        }
+        
+        .notification {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            padding: 15px 20px;
+            border-radius: 8px;
+            color: white;
+            font-weight: bold;
+            z-index: 10000;
+            opacity: 0;
+            transform: translateX(100%);
+            transition: all 0.3s;
+        }
+        
+        .notification.show {
+            opacity: 1;
+            transform: translateX(0);
+        }
+        
+        .notification.success {
+            background: #28a745;
+        }
+        
+        .notification.error {
+            background: #dc3545;
+        }
+        
+        .notification.info {
+            background: #17a2b8;
+        }
+        
+        .stats {
+            background: #e9ecef;
+            padding: 15px;
+            border-radius: 8px;
+            margin: 10px 0;
+            text-align: center;
+        }
+        
+        .stats h4 {
+            margin: 0;
+            color: #495057;
+        }
+        
+        .stats p {
+            margin: 5px 0 0 0;
+            font-size: 18px;
+            font-weight: bold;
+            color: #007bff;
+        }
+        
+        /* Overlay para fechar menu */
+        .menu-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.5);
+            z-index: 9998;
+            opacity: 0;
+            visibility: hidden;
+            transition: all 0.3s;
+        }
+        
+        .menu-overlay.show {
+            opacity: 1;
+            visibility: visible;
+        }
+        
+        /* Responsivo */
+        @media (max-width: 768px) {
+            .sidebar {
+                display: none;
+            }
+            
+            .hamburger-menu {
+                display: block;
+            }
+            
+            .pwa-menu {
+                display: block;
+            }
+        }
+        
+        @media (min-width: 769px) {
+            .hamburger-menu {
+                display: none;
+            }
+            
+            .pwa-menu {
+                display: none;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Menu hambúrguer para PWA -->
+        <div class="hamburger-menu" id="hamburger-menu">
+            <button class="hamburger-btn" id="hamburger-btn">
+                <span></span>
+                <span></span>
+                <span></span>
+            </button>
+        </div>
+        
+        <!-- Menu lateral para PWA -->
+        <div class="pwa-menu" id="pwa-menu">
+            <div class="menu-header">
+                <h3>🎯 Controle de Obra</h3>
+                <button class="close-menu" id="close-menu">&times;</button>
+            </div>
+            
+            <!-- Status -->
+            <div class="menu-section">
+                <h4>Status</h4>
+                <div class="connection-status online" id="connection-status">Online</div>
+                <div class="stats">
+                    <h4>Marcações</h4>
+                    <p id="markings-count">0</p>
+                </div>
+            </div>
+            
+            <!-- Ferramentas -->
+            <div class="menu-section">
+                <h4>🛠️ Ferramentas</h4>
+                <button class="btn btn-primary" id="manual-sync-pwa">
+                    🔄 Sincronizar
+                </button>
+                <button class="btn btn-success" onclick="exportKMZ()">
+                    📦 Exportar KMZ
+                </button>
+                <button class="btn btn-warning" onclick="exportExcel()">
+                    📊 Exportar Excel
+                </button>
+            </div>
+            
+            <!-- Dados -->
+            <div class="menu-section">
+                <h4>📱 Dados</h4>
+                <button class="btn btn-primary" id="download-offline-pwa">
+                    📥 Baixar Dados
+                </button>
+                <button class="btn btn-success" id="upload-offline-pwa">
+                    📤 Enviar Dados
+                </button>
+            </div>
+            
+            <!-- Utilitários -->
+            <div class="menu-section">
+                <h4>🔧 Utilitários</h4>
+                <button class="btn btn-warning" onclick="importKMZ()">
+                    📁 Importar KMZ
+                </button>
+                <button class="btn btn-danger" onclick="clearAll()">
+                    🗑️ Limpar Tudo
+                </button>
+            </div>
+        </div>
+        
+        <!-- Overlay para fechar menu -->
+        <div class="menu-overlay" id="menu-overlay"></div>
+        
+        <!-- Sidebar para PC -->
+        <div class="sidebar" id="pc-sidebar">
+            <h2>🎯 Controle de Obra</h2>
+            
+            <!-- Status de Conexão -->
+            <div class="section">
+                <h3>Status</h3>
+                <div class="connection-status online" id="connection-status-pc">Online</div>
+                <div class="stats">
+                    <h4>Marcações</h4>
+                    <p id="markings-count-pc">0</p>
+                </div>
+            </div>
+            
+            <!-- Modo PC -->
+            <div class="section">
+                <h3>🖥️ Modo PC</h3>
+                <button class="btn btn-primary" id="manual-sync-pc">
+                    🔄 Sincronizar Agora
+                </button>
+                <button class="btn btn-success" onclick="exportKMZ()">
+                    📦 Exportar KMZ
+                </button>
+                <button class="btn btn-warning" onclick="exportExcel()">
+                    📊 Exportar Excel
+                </button>
+            </div>
+            
+            <!-- Ferramentas -->
+            <div class="section">
+                <h3>🛠️ Ferramentas</h3>
+                <button class="btn btn-warning" onclick="importKMZ()">
+                    📁 Importar KMZ
+                </button>
+                <button class="btn btn-danger" onclick="clearAll()">
+                    🗑️ Limpar Tudo
+                </button>
+            </div>
+        </div>
+        
+        <!-- Mapa -->
+        <div class="map-container">
+            <div id="map"></div>
+            <div class="status-bar">
+                <div class="connection-status online" id="status-indicator">Online</div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Notificações -->
+    <div id="notification" class="notification"></div>
+    
+    <!-- Scripts -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://unpkg.com/leaflet-draw@1.0.4/dist/leaflet.draw.js"></script>
+    <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+    <script src="https://unpkg.com/jszip@3.10.1/dist/jszip.min.js"></script>
+    <script src="https://unpkg.com/xml2js@0.6.2/dist/xml2js.min.js"></script>
+    <script src="supabase-config.js"></script>
+    <script src="app.js"></script>
+
+    <script>
+        // Detectar modo PWA
+        function isPWAMode() {
+            return window.matchMedia('(display-mode: standalone)').matches || 
+                   window.navigator.standalone === true || 
+                   document.referrer.includes('android-app://') ||
+                   window.innerWidth <= 768;
+        }
+        
+        // Configurar interface baseada no modo
+        function setupInterface() {
+            const isPWA = isPWAMode();
+            const pcSidebar = document.getElementById('pc-sidebar');
+            const hamburgerMenu = document.getElementById('hamburger-menu');
+            const pwaMenu = document.getElementById('pwa-menu');
+            
+            if (isPWA) {
+                pcSidebar.style.display = 'none';
+                hamburgerMenu.style.display = 'block';
+                pwaMenu.style.display = 'block';
+            } else {
+                pcSidebar.style.display = 'block';
+                hamburgerMenu.style.display = 'none';
+                pwaMenu.style.display = 'none';
+            }
+        }
+        
+        // Controle do menu hambúrguer
+        function setupHamburgerMenu() {
+            const hamburgerBtn = document.getElementById('hamburger-btn');
+            const pwaMenu = document.getElementById('pwa-menu');
+            const menuOverlay = document.getElementById('menu-overlay');
+            const closeMenu = document.getElementById('close-menu');
+            
+            function openMenu() {
+                hamburgerBtn.classList.add('active');
+                pwaMenu.classList.add('open');
+                menuOverlay.classList.add('show');
+            }
+            
+            function closeMenuFunc() {
+                hamburgerBtn.classList.remove('active');
+                pwaMenu.classList.remove('open');
+                menuOverlay.classList.remove('show');
+            }
+            
+            hamburgerBtn.addEventListener('click', openMenu);
+            closeMenu.addEventListener('click', closeMenuFunc);
+            menuOverlay.addEventListener('click', closeMenuFunc);
+        }
+        
+        // Atualizar contador de marcações
+        function updateMarkingsCount() {
+            const markings = JSON.parse(localStorage.getItem('controle_obra_markings') || '[]');
+            const pcCount = document.getElementById('markings-count-pc');
+            const pwaCount = document.getElementById('markings-count');
+            
+            if (pcCount) pcCount.textContent = markings.length;
+            if (pwaCount) pwaCount.textContent = markings.length;
+        }
+        
+        // Mostrar notificação
+        function showNotification(message, type = 'info') {
+            const notification = document.getElementById('notification');
+            notification.textContent = message;
+            notification.className = `notification ${type} show`;
+            
+            setTimeout(() => {
+                notification.classList.remove('show');
+            }, 3000);
+        }
+        
+        // Exportar KMZ
+        function exportKMZ() {
+            const markings = JSON.parse(localStorage.getItem('controle_obra_markings') || '[]');
+            if (markings.length === 0) {
+                showNotification('Nenhuma marcação para exportar', 'error');
+                return;
+            }
+            
+            showNotification('Exportando KMZ...', 'info');
+            console.log('Exportando KMZ:', markings);
+        }
+        
+        // Exportar Excel
+        function exportExcel() {
+            const markings = JSON.parse(localStorage.getItem('controle_obra_markings') || '[]');
+            if (markings.length === 0) {
+                showNotification('Nenhuma marcação para exportar', 'error');
+                return;
+            }
+            
+            showNotification('Exportando Excel...', 'info');
+            console.log('Exportando Excel:', markings);
+        }
+        
+        // Importar KMZ
+        function importKMZ() {
+            const input = document.createElement('input');
+            input.type = 'file';
+            input.accept = '.kmz,.kml';
+            input.onchange = function(e) {
+                const file = e.target.files[0];
+                if (file) {
+                    showNotification('Importando KMZ...', 'info');
+                    console.log('Importando KMZ:', file.name);
+                }
+            };
+            input.click();
+        }
+        
+        // Limpar tudo
+        function clearAll() {
+            if (confirm('Tem certeza que deseja limpar todas as marcações?')) {
+                localStorage.removeItem('controle_obra_markings');
+                if (window.drawnItems) {
+                    window.drawnItems.clearLayers();
+                }
+                updateMarkingsCount();
+                showNotification('Todas as marcações foram removidas', 'success');
+            }
+        }
+        
+        // Inicializar
+        document.addEventListener('DOMContentLoaded', function() {
+            setupInterface();
+            setupHamburgerMenu();
+            updateMarkingsCount();
+            
+            // Atualizar contador a cada 5 segundos
+            setInterval(updateMarkingsCount, 5000);
+        });
+    </script>
+</body>
+</html>
