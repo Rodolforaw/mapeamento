@@ -243,6 +243,7 @@ function createWorkFromData(workData) {
         }
         
         // Adicionar propriedades da obra
+        work.workId = workData.id || generateWorkId(); // Usar ID do banco ou gerar novo
         work.workNumber = workData.work_number || '';
         work.workProduct = workData.product || '';
         work.workMeasure = workData.measure || '';
@@ -353,6 +354,7 @@ async function saveWorkInfo() {
     }
     
     const workData = {
+        id: generateWorkId(), // Gerar ID único
         name: currentWork.workName,
         description: workObservation,
         type: workType,
