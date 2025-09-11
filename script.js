@@ -387,11 +387,12 @@ async function handleFileImport(event) {
     if (!file) return;
     
     try {
-        showToast('Importando arquivo KMZ...', 'info');
+        const fileName = file.name.toLowerCase();
+        const isKMZ = fileName.endsWith('.kmz');
+        const isKML = fileName.endsWith('.kml');
         
-        // Validar tipo de arquivo
-        if (!file.name.toLowerCase().endsWith('.kmz')) {
-            throw new Error('Por favor, selecione um arquivo KMZ válido');
+        if (!isKMZ && !isKML) {
+            throw new Error('Por favor, selecione um arquivo KMZ ou KML válido');
         }
         
         // Validar tamanho do arquivo (máximo 10MB)
@@ -399,41 +400,71 @@ async function handleFileImport(event) {
             throw new Error('Arquivo muito grande. Máximo 10MB permitido');
         }
         
-        // Ler arquivo como array buffer
-        const arrayBuffer = await file.arrayBuffer();
+        let kmlContent;
         
-        // Verificar se é um arquivo ZIP válido
-        if (arrayBuffer.byteLength < 22) {
-            throw new Error('Arquivo inválido ou corrompido');
+        if (isKML) {
+            // Arquivo KML direto
+            showToast('Importando arquivo KML...', 'info');
+            kmlContent = await file.text();
+        } else {
+            // Arquivo KMZ (ZIP)
+            showToast('Importando arquivo KMZ...', 'info');
+            
+            // Ler arquivo como array buffer
+            const arrayBuffer = await file.arrayBuffer();
+            
+            // Verificar se é um arquivo ZIP válido
+            if (arrayBuffer.byteLength < 22) {
+                throw new Error('Arquivo inválido ou corrompido');
+            }
+            
+            // Verificar assinatura ZIP
+            const view = new Uint8Array(arrayBuffer);
+            const zipSignature = view[0] === 0x50 && view[1] === 0x4B; // PK
+            if (!zipSignature) {
+                throw new Error('Arquivo não é um ZIP válido. Verifique se o arquivo não está corrompido.');
+            }
+            
+            try {
+                // Processar com JSZip
+                const zip = new JSZip();
+                const zipContent = await zip.loadAsync(arrayBuffer);
+                
+                // Procurar arquivo KML (pode ter diferentes nomes)
+                const kmlFiles = Object.keys(zipContent.files).filter(name => name.endsWith('.kml'));
+                if (kmlFiles.length === 0) {
+                    throw new Error('Arquivo KML não encontrado no KMZ');
+                }
+                
+                // Usar o primeiro arquivo KML encontrado
+                const kmlFile = zipContent.file(kmlFiles[0]);
+                if (!kmlFile) {
+                    throw new Error('Não foi possível acessar o arquivo KML');
+                }
+                
+                kmlContent = await kmlFile.async('text');
+            } catch (zipError) {
+                if (zipError.message.includes('end of central directory')) {
+                    throw new Error('Arquivo KMZ corrompido ou não é um ZIP válido. Tente exportar novamente do Google Earth.');
+                }
+                throw zipError;
+            }
         }
-        
-        // Processar com JSZip
-        const zip = new JSZip();
-        const zipContent = await zip.loadAsync(arrayBuffer);
-        
-        // Procurar arquivo KML (pode ter diferentes nomes)
-        const kmlFiles = Object.keys(zipContent.files).filter(name => name.endsWith('.kml'));
-        if (kmlFiles.length === 0) {
-            throw new Error('Arquivo KML não encontrado no KMZ');
-        }
-        
-        // Usar o primeiro arquivo KML encontrado
-        const kmlFile = zipContent.file(kmlFiles[0]);
-        if (!kmlFile) {
-            throw new Error('Não foi possível acessar o arquivo KML');
-        }
-        
-        const kmlContent = await kmlFile.async('text');
         
         // Validar conteúdo KML
         if (!kmlContent || kmlContent.trim().length === 0) {
             throw new Error('Arquivo KML está vazio ou corrompido');
         }
         
+        // Verificar se é um KML válido
+        if (!kmlContent.includes('<kml') && !kmlContent.includes('<KML')) {
+            throw new Error('Arquivo não é um KML válido');
+        }
+        
         const kmlData = await parseKML(kmlContent);
         
         if (!kmlData || kmlData.length === 0) {
-            throw new Error('Nenhuma obra encontrada no arquivo KMZ');
+            throw new Error('Nenhuma obra encontrada no arquivo');
         }
         
         // Limpar obras existentes
@@ -452,8 +483,8 @@ async function handleFileImport(event) {
         showToast(`${importedCount} obras importadas com sucesso!`, 'success');
         
     } catch (error) {
-        console.error('Erro ao importar KMZ:', error);
-        showToast('Erro ao importar KMZ: ' + error.message, 'error');
+        console.error('Erro ao importar arquivo:', error);
+        showToast('Erro ao importar: ' + error.message, 'error');
     } finally {
         event.target.value = '';
     }
@@ -549,48 +580,66 @@ function generateKMLPlacemark(work) {
         </Placemark>`;
 }
 
-// Parsear KML
+// Parsear KML usando DOMParser (mais confiável)
 async function parseKML(kmlContent) {
     return new Promise((resolve, reject) => {
-        // Verificar se xml2js está disponível
-        if (typeof xml2js === 'undefined') {
-            reject(new Error('xml2js não está carregado. Recarregue a página.'));
-            return;
-        }
-        
-        const parser = new xml2js.Parser();
-        parser.parseString(kmlContent, (err, result) => {
-            if (err) {
-                reject(err);
-                return;
+        try {
+            // Usar DOMParser para parsing XML
+            const parser = new DOMParser();
+            const xmlDoc = parser.parseFromString(kmlContent, 'text/xml');
+            
+            // Verificar se há erros de parsing
+            const parseError = xmlDoc.getElementsByTagName('parsererror')[0];
+            if (parseError) {
+                throw new Error('Erro ao fazer parse do XML: ' + parseError.textContent);
             }
             
-            try {
-                const placemarks = result.kml.Document[0].Placemark || [];
-                const works = placemarks.map(placemark => {
-                    const name = placemark.name ? placemark.name[0] : 'Obra sem nome';
-                    const description = placemark.description ? placemark.description[0] : '';
-                    const geometry = placemark.Point || placemark.Polygon || placemark.LineString;
-                    
-                    let workData = {
-                        name: name,
-                        description: description,
-                        workNumber: '',
-                        workProduct: '',
-                        workMeasure: '',
-                        workObservation: ''
-                    };
-                    
-                    if (placemark.Point) {
-                        workData.workType = 'marker';
-                        const coords = placemark.Point[0].coordinates[0].split(',');
+            // Buscar todos os Placemarks
+            const placemarks = xmlDoc.getElementsByTagName('Placemark');
+            const works = [];
+            
+            for (let i = 0; i < placemarks.length; i++) {
+                const placemark = placemarks[i];
+                
+                // Extrair nome
+                const nameElement = placemark.getElementsByTagName('name')[0];
+                const name = nameElement ? nameElement.textContent.trim() : 'Obra sem nome';
+                
+                // Extrair descrição
+                const descElement = placemark.getElementsByTagName('description')[0];
+                const description = descElement ? descElement.textContent.trim() : '';
+                
+                let workData = {
+                    name: name,
+                    description: description,
+                    workNumber: '',
+                    workProduct: '',
+                    workMeasure: '',
+                    workObservation: ''
+                };
+                
+                // Verificar tipo de geometria
+                const point = placemark.getElementsByTagName('Point')[0];
+                const polygon = placemark.getElementsByTagName('Polygon')[0];
+                const lineString = placemark.getElementsByTagName('LineString')[0];
+                
+                if (point) {
+                    // Marcador
+                    workData.workType = 'marker';
+                    const coordsElement = point.getElementsByTagName('coordinates')[0];
+                    if (coordsElement) {
+                        const coords = coordsElement.textContent.trim().split(',');
                         workData.position = {
                             lat: parseFloat(coords[1]),
                             lng: parseFloat(coords[0])
                         };
-                    } else if (placemark.Polygon) {
-                        workData.workType = 'polygon';
-                        const coords = placemark.Polygon[0].outerBoundaryIs[0].LinearRing[0].coordinates[0];
+                    }
+                } else if (polygon) {
+                    // Polígono
+                    workData.workType = 'polygon';
+                    const coordsElement = polygon.getElementsByTagName('coordinates')[0];
+                    if (coordsElement) {
+                        const coords = coordsElement.textContent.trim();
                         workData.paths = coords.split(' ').map(coord => {
                             const parts = coord.split(',');
                             return {
@@ -598,9 +647,13 @@ async function parseKML(kmlContent) {
                                 lng: parseFloat(parts[0])
                             };
                         });
-                    } else if (placemark.LineString) {
-                        workData.workType = 'polyline';
-                        const coords = placemark.LineString[0].coordinates[0];
+                    }
+                } else if (lineString) {
+                    // Linha
+                    workData.workType = 'polyline';
+                    const coordsElement = lineString.getElementsByTagName('coordinates')[0];
+                    if (coordsElement) {
+                        const coords = coordsElement.textContent.trim();
                         workData.path = coords.split(' ').map(coord => {
                             const parts = coord.split(',');
                             return {
@@ -609,15 +662,18 @@ async function parseKML(kmlContent) {
                             };
                         });
                     }
-                    
-                    return workData;
-                });
+                }
                 
-                resolve(works);
-            } catch (error) {
-                reject(error);
+                // Só adicionar se tiver geometria válida
+                if (workData.position || workData.paths || workData.path) {
+                    works.push(workData);
+                }
             }
-        });
+            
+            resolve(works);
+        } catch (error) {
+            reject(error);
+        }
     });
 }
 
