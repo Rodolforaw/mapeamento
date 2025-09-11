@@ -30,6 +30,9 @@ let deviceLocations = {}; // Estrutura: { deviceId: { lat, lng, timestamp, devic
 let deviceMarkers = {}; // Marcadores dos dispositivos no mapa
 let isTrackingDevices = false;
 
+// Variáveis para modo offline
+let isOfflineMode = false;
+
 // Variáveis para gerenciamento de obras
 let worksData = {}; // Estrutura: { osNumber: { product, markings: [], lastUpdate } }
 
@@ -479,6 +482,9 @@ document.addEventListener('DOMContentLoaded', function() {
     }
     
     hideLoading();
+    
+    // Configurar botões baseado no modo (PWA vs Desktop)
+    setupModeButtons();
 });
 
 // Inicializar o mapa
@@ -1746,13 +1752,19 @@ async function saveToLocalStorage(markingData) {
         }));
         
         // Sincronizar com Supabase se disponível
-        if (window.supabaseConfig && navigator.onLine) {
+        if (window.supabaseConfig && navigator.onLine && !isOfflineMode) {
             try {
                 await window.supabaseConfig.saveMarkings([markingData]);
                 console.log('✅ Marcação salva no Supabase');
             } catch (error) {
                 console.error('❌ Erro ao salvar no Supabase:', error);
+                // Adicionar à fila offline em caso de erro
+                addToOfflineQueue('save', markingData);
             }
+        } else if (isOfflineMode || !navigator.onLine) {
+            // Adicionar à fila offline
+            addToOfflineQueue('save', markingData);
+            console.log('📝 Marcação adicionada à fila offline');
         }
         
     } catch (error) {
@@ -1768,13 +1780,19 @@ async function removeFromLocalStorage(markingId) {
         localStorage.setItem('controle_obra_markings', JSON.stringify(filteredData));
         
         // Sincronizar remoção com Supabase se disponível
-        if (window.supabaseConfig && navigator.onLine) {
+        if (window.supabaseConfig && navigator.onLine && !isOfflineMode) {
             try {
                 await window.supabaseConfig.deleteMarking(markingId);
                 console.log('✅ Marcação removida do Supabase');
             } catch (error) {
                 console.error('❌ Erro ao remover do Supabase:', error);
+                // Adicionar à fila offline em caso de erro
+                addToOfflineQueue('delete', { id: markingId });
             }
+        } else if (isOfflineMode || !navigator.onLine) {
+            // Adicionar à fila offline
+            addToOfflineQueue('delete', { id: markingId });
+            console.log('📝 Remoção adicionada à fila offline');
         }
     } catch (error) {
         console.error('Erro ao remover do localStorage:', error);
@@ -2149,6 +2167,8 @@ function setupRealTimeSync() {
         setTimeout(async () => {
             if (!syncInProgress && window.supabaseConfig) {
                 await syncCrossContextData();
+                // Processar fila offline quando voltar online
+                await processOfflineQueue();
             }
         }, 2000);
     });
@@ -2489,6 +2509,22 @@ function setupGeolocationEventListeners() {
     if (devicesBtn) {
         devicesBtn.addEventListener('click', toggleDeviceTracking);
     }
+    
+    // Event listeners para sincronização manual e offline
+    const manualSyncPC = document.getElementById('manual-sync-pc');
+    if (manualSyncPC) {
+        manualSyncPC.addEventListener('click', manualSync);
+    }
+    
+    const downloadOffline = document.getElementById('download-offline-pwa');
+    if (downloadOffline) {
+        downloadOffline.addEventListener('click', downloadOfflineData);
+    }
+    
+    const uploadOffline = document.getElementById('upload-offline-pwa');
+    if (uploadOffline) {
+        uploadOffline.addEventListener('click', uploadOfflineData);
+    }
 }
 
 // Alternar rastreamento de localização
@@ -2558,6 +2594,261 @@ function stopDeviceTracking() {
     }
     
     showNotification('Rastreamento de dispositivos desativado!', 'info');
+}
+
+// ==============================================
+// SISTEMA DE SINCRONIZAÇÃO MANUAL E OFFLINE
+// ==============================================
+
+// Função para mostrar status de sincronização
+function showSyncStatus(message, type = 'syncing') {
+    const status = document.getElementById('sync-status');
+    const text = document.getElementById('sync-status-text');
+    
+    if (status && text) {
+        text.textContent = message;
+        status.className = `sync-status ${type}`;
+        status.style.display = 'block';
+        
+        // Auto-hide após 3 segundos (exceto para erros)
+        if (type !== 'error') {
+            setTimeout(() => {
+                status.style.display = 'none';
+            }, 3000);
+        }
+    }
+}
+
+// Função para sincronização manual (modo PC)
+async function manualSync() {
+    const button = document.getElementById('manual-sync-pc');
+    if (button) {
+        button.classList.add('loading');
+        button.disabled = true;
+    }
+    
+    try {
+        showSyncStatus('🔄 Sincronizando manualmente...', 'syncing');
+        
+        if (window.supabaseConfig && navigator.onLine) {
+            await autoSyncWithSupabase();
+            showSyncStatus('✅ Sincronização concluída!', 'success');
+        } else {
+            showSyncStatus('❌ Sem conexão com internet', 'error');
+        }
+    } catch (error) {
+        console.error('❌ Erro na sincronização manual:', error);
+        showSyncStatus('❌ Erro na sincronização', 'error');
+    } finally {
+        if (button) {
+            button.classList.remove('loading');
+            button.disabled = false;
+        }
+    }
+}
+
+// Função para baixar dados para modo offline (PWA)
+async function downloadOfflineData() {
+    const button = document.getElementById('download-offline-pwa');
+    if (button) {
+        button.classList.add('loading');
+        button.disabled = true;
+    }
+    
+    try {
+        showSyncStatus('📥 Baixando dados para offline...', 'syncing');
+        
+        if (window.supabaseConfig && navigator.onLine) {
+            // Baixar todas as marcações do servidor
+            const result = await window.supabaseConfig.loadMarkings();
+            if (result.success) {
+                // Salvar no localStorage para uso offline
+                localStorage.setItem('controle_obra_markings', JSON.stringify(result.markings));
+                localStorage.setItem('controle_obra_offline_sync', Date.now().toString());
+                
+                isOfflineMode = true;
+                showSyncStatus(`✅ ${result.markings.length} marcações baixadas!`, 'success');
+                
+                // Atualizar contador offline
+                updateOfflineCounter();
+            } else {
+                showSyncStatus('❌ Erro ao baixar dados', 'error');
+            }
+        } else {
+            showSyncStatus('❌ Sem conexão com internet', 'error');
+        }
+    } catch (error) {
+        console.error('❌ Erro ao baixar dados offline:', error);
+        showSyncStatus('❌ Erro ao baixar dados', 'error');
+    } finally {
+        if (button) {
+            button.classList.remove('loading');
+            button.disabled = false;
+        }
+    }
+}
+
+// Função para enviar dados quando voltar online (PWA)
+async function uploadOfflineData() {
+    const button = document.getElementById('upload-offline-pwa');
+    if (button) {
+        button.classList.add('loading');
+        button.disabled = true;
+    }
+    
+    try {
+        showSyncStatus('📤 Enviando dados offline...', 'syncing');
+        
+        if (window.supabaseConfig && navigator.onLine) {
+            // Carregar dados locais
+            const localMarkings = JSON.parse(localStorage.getItem('controle_obra_markings') || '[]');
+            
+            if (localMarkings.length > 0) {
+                // Enviar para o servidor
+                const result = await window.supabaseConfig.saveMarkings(localMarkings);
+                if (result.success) {
+                    // Limpar fila offline
+                    offlineQueue = [];
+                    localStorage.removeItem('controle_obra_offline_queue');
+                    
+                    isOfflineMode = false;
+                    showSyncStatus(`✅ ${localMarkings.length} marcações enviadas!`, 'success');
+                    
+                    // Atualizar contador offline
+                    updateOfflineCounter();
+                } else {
+                    showSyncStatus('❌ Erro ao enviar dados', 'error');
+                }
+            } else {
+                showSyncStatus('ℹ️ Nenhum dado para enviar', 'success');
+            }
+        } else {
+            showSyncStatus('❌ Sem conexão com internet', 'error');
+        }
+    } catch (error) {
+        console.error('❌ Erro ao enviar dados offline:', error);
+        showSyncStatus('❌ Erro ao enviar dados', 'error');
+    } finally {
+        if (button) {
+            button.classList.remove('loading');
+            button.disabled = false;
+        }
+    }
+}
+
+// Função para adicionar item à fila offline
+function addToOfflineQueue(action, data) {
+    const queueItem = {
+        id: Date.now() + '_' + Math.random().toString(36).substr(2, 9),
+        action: action, // 'save', 'delete'
+        data: data,
+        timestamp: Date.now()
+    };
+    
+    offlineQueue.push(queueItem);
+    localStorage.setItem('controle_obra_offline_queue', JSON.stringify(offlineQueue));
+    
+    updateOfflineCounter();
+    console.log(`📝 Item adicionado à fila offline: ${action}`, queueItem);
+}
+
+// Função para processar fila offline
+async function processOfflineQueue() {
+    if (offlineQueue.length === 0 || !navigator.onLine || !window.supabaseConfig) {
+        return;
+    }
+    
+    try {
+        showSyncStatus(`🔄 Processando ${offlineQueue.length} itens offline...`, 'syncing');
+        
+        for (const item of offlineQueue) {
+            if (item.action === 'save') {
+                await window.supabaseConfig.saveMarkings([item.data]);
+            } else if (item.action === 'delete') {
+                await window.supabaseConfig.deleteMarking(item.data.id);
+            }
+        }
+        
+        // Limpar fila após processamento
+        offlineQueue = [];
+        localStorage.removeItem('controle_obra_offline_queue');
+        
+        showSyncStatus('✅ Fila offline processada!', 'success');
+        updateOfflineCounter();
+        
+    } catch (error) {
+        console.error('❌ Erro ao processar fila offline:', error);
+        showSyncStatus('❌ Erro ao processar fila offline', 'error');
+    }
+}
+
+// Função para atualizar contador offline
+function updateOfflineCounter() {
+    const count = offlineQueue.length;
+    const uploadButton = document.getElementById('upload-offline-pwa');
+    
+    if (uploadButton) {
+        // Remover contador existente
+        const existingCounter = uploadButton.querySelector('.offline-counter');
+        if (existingCounter) {
+            existingCounter.remove();
+        }
+        
+        // Adicionar novo contador se houver itens
+        if (count > 0) {
+            const counter = document.createElement('span');
+            counter.className = 'offline-counter';
+            counter.textContent = count;
+            uploadButton.style.position = 'relative';
+            uploadButton.appendChild(counter);
+        }
+    }
+}
+
+// Função para detectar modo PWA
+function isPWAMode() {
+    return window.matchMedia('(display-mode: standalone)').matches || 
+           window.navigator.standalone === true || 
+           document.referrer.includes('android-app://');
+}
+
+// Função para configurar botões baseado no modo
+function setupModeButtons() {
+    const isPWA = isPWAMode();
+    
+    // Botões do modo PC
+    const manualSyncPC = document.getElementById('manual-sync-pc');
+    if (manualSyncPC) {
+        manualSyncPC.style.display = !isPWA ? 'flex' : 'none';
+    }
+    
+    // Botões do modo PWA
+    const downloadOffline = document.getElementById('download-offline-pwa');
+    const uploadOffline = document.getElementById('upload-offline-pwa');
+    
+    if (downloadOffline) {
+        downloadOffline.style.display = isPWA ? 'flex' : 'none';
+    }
+    if (uploadOffline) {
+        uploadOffline.style.display = isPWA ? 'flex' : 'none';
+    }
+    
+    // Verificar se já está em modo offline
+    const lastSync = localStorage.getItem('controle_obra_offline_sync');
+    if (lastSync && isPWA) {
+        const timeSinceSync = Date.now() - parseInt(lastSync);
+        if (timeSinceSync > 300000) { // 5 minutos
+            isOfflineMode = true;
+            showSyncStatus('📱 Modo offline ativo', 'offline');
+        }
+    }
+    
+    // Carregar fila offline
+    const savedQueue = localStorage.getItem('controle_obra_offline_queue');
+    if (savedQueue) {
+        offlineQueue = JSON.parse(savedQueue);
+        updateOfflineCounter();
+    }
 }
 
 // Iniciar rastreamento de localização
