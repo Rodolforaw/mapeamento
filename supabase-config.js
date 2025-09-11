@@ -32,8 +32,8 @@ async function saveMarkingsToSupabase(markings) {
             coordinates: marking.coordinates || { lat: marking.lat, lng: marking.lng },
             properties: marking.properties || {},
             source: marking.properties?.source || 'manual', // 'manual' ou 'upload'
-            timestamp: marking.timestamp || Date.now(),
-            last_modified: Date.now(),
+            timestamp: typeof marking.timestamp === 'string' ? new Date(marking.timestamp).getTime() : (marking.timestamp || Date.now()),
+            last_modified: typeof marking.lastModified === 'string' ? new Date(marking.lastModified).getTime() : Date.now(),
             device_id: getDeviceId()
         }));
 
@@ -85,8 +85,8 @@ async function loadMarkingsFromSupabase() {
                 ...item.properties,
                 source: item.source || 'manual'
             },
-            timestamp: item.timestamp,
-            lastModified: item.last_modified
+            timestamp: typeof item.timestamp === 'string' ? new Date(item.timestamp).getTime() : item.timestamp,
+            lastModified: typeof item.last_modified === 'string' ? new Date(item.last_modified).getTime() : item.last_modified
         }));
 
         console.log('Marcações carregadas do Supabase:', markings.length);
@@ -200,8 +200,12 @@ function mergeMarkings(localMarkings, serverMarkings) {
         
         if (existingIndex >= 0) {
             // Manter a versão mais recente baseada em lastModified ou timestamp
-            const localTime = merged[existingIndex].lastModified || merged[existingIndex].timestamp || 0;
-            const serverTime = serverMarking.lastModified || serverMarking.timestamp || 0;
+            const localTime = typeof merged[existingIndex].lastModified === 'string' ? 
+                new Date(merged[existingIndex].lastModified).getTime() : 
+                (merged[existingIndex].lastModified || merged[existingIndex].timestamp || 0);
+            const serverTime = typeof serverMarking.lastModified === 'string' ? 
+                new Date(serverMarking.lastModified).getTime() : 
+                (serverMarking.lastModified || serverMarking.timestamp || 0);
             
             if (serverTime > localTime) {
                 console.log(`🔄 Atualizando marcação ${serverMarking.id} do servidor`);
@@ -213,8 +217,12 @@ function mergeMarkings(localMarkings, serverMarkings) {
         }
     });
     
-    // Ordenar por timestamp
-    merged.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
+    // Ordenar por timestamp (garantir que são números)
+    merged.sort((a, b) => {
+        const aTime = typeof a.timestamp === 'string' ? new Date(a.timestamp).getTime() : (a.timestamp || 0);
+        const bTime = typeof b.timestamp === 'string' ? new Date(b.timestamp).getTime() : (b.timestamp || 0);
+        return bTime - aTime;
+    });
     
     return merged;
 }
