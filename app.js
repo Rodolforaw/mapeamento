@@ -2094,15 +2094,46 @@ function syncNewMarkings() {
                     }
                 }
                 
-                // Se falhou e é um círculo, tentar criar com raio da marcação
-                if (!layer && marking.type === 'circle' && marking.radius) {
-                    console.log(`🔵 Tentando recriar círculo ${marking.id} com raio ${marking.radius}`);
-                    layer = L.circle([marking.coordinates.lat, marking.coordinates.lng], {
-                        radius: marking.radius,
-                        color: '#2196F3',
-                        weight: 3,
-                        fillOpacity: 0.3
-                    });
+                // Fallbacks específicos para cada tipo de forma
+                if (!layer) {
+                    if (marking.type === 'circle' && marking.radius) {
+                        console.log(`🔵 Fallback: Recriando círculo ${marking.id} com raio ${marking.radius}`);
+                        layer = L.circle([marking.coordinates.lat, marking.coordinates.lng], {
+                            radius: marking.radius,
+                            color: '#2196F3',
+                            weight: 3,
+                            fillOpacity: 0.3
+                        });
+                    } else if (marking.type === 'rectangle' && marking.bounds) {
+                        console.log(`⬜ Fallback: Recriando retângulo ${marking.id} com bounds`);
+                        const bounds = L.latLngBounds(
+                            [marking.bounds.southWest.lat, marking.bounds.southWest.lng],
+                            [marking.bounds.northEast.lat, marking.bounds.northEast.lng]
+                        );
+                        layer = L.rectangle(bounds, {
+                            color: '#2196F3',
+                            weight: 3,
+                            fillOpacity: 0.3
+                        });
+                    } else if (marking.type === 'polygon' && marking.coordinates && marking.coordinates.length > 2) {
+                        console.log(`🔷 Fallback: Recriando polígono ${marking.id} com ${marking.coordinates.length} pontos`);
+                        const latlngs = marking.coordinates.map(coord => [coord.lat, coord.lng]);
+                        layer = L.polygon(latlngs, {
+                            color: '#2196F3',
+                            weight: 3,
+                            fillOpacity: 0.3
+                        });
+                    } else if (marking.type === 'polyline' && marking.coordinates && marking.coordinates.length > 1) {
+                        console.log(`📏 Fallback: Recriando linha ${marking.id} com ${marking.coordinates.length} pontos`);
+                        const latlngs = marking.coordinates.map(coord => [coord.lat, coord.lng]);
+                        layer = L.polyline(latlngs, {
+                            color: '#2196F3',
+                            weight: 3
+                        });
+                    } else if (marking.type === 'marker' && marking.coordinates) {
+                        console.log(`📍 Fallback: Recriando marcador ${marking.id}`);
+                        layer = L.marker([marking.coordinates.lat, marking.coordinates.lng]);
+                    }
                 }
                 
                 if (layer) {
@@ -2269,6 +2300,73 @@ function testCircleCreation() {
     console.log('✅ Círculo de teste criado e salvo');
 }
 
+// Função para testar criação de diferentes formas
+function testAllShapes() {
+    console.log('🧪 TESTE: Criando todas as formas de teste...');
+    
+    // 1. Círculo
+    const testCircle = L.circle([-22.9, -42.8], {
+        radius: 300,
+        color: '#ff0000',
+        weight: 3,
+        fillOpacity: 0.3
+    });
+    drawnItems.addLayer(testCircle);
+    saveMarkingWithData(testCircle, {
+        name: 'Teste Círculo',
+        description: 'Círculo de teste'
+    });
+    
+    // 2. Linha
+    const testLine = L.polyline([
+        [-22.9, -42.8],
+        [-22.91, -42.81],
+        [-22.92, -42.82]
+    ], {
+        color: '#00ff00',
+        weight: 3
+    });
+    drawnItems.addLayer(testLine);
+    saveMarkingWithData(testLine, {
+        name: 'Teste Linha',
+        description: 'Linha de teste'
+    });
+    
+    // 3. Polígono
+    const testPolygon = L.polygon([
+        [-22.9, -42.8],
+        [-22.91, -42.8],
+        [-22.91, -42.81],
+        [-22.9, -42.81]
+    ], {
+        color: '#0000ff',
+        weight: 3,
+        fillOpacity: 0.3
+    });
+    drawnItems.addLayer(testPolygon);
+    saveMarkingWithData(testPolygon, {
+        name: 'Teste Polígono',
+        description: 'Polígono de teste'
+    });
+    
+    // 4. Retângulo
+    const testRect = L.rectangle([
+        [-22.9, -42.8],
+        [-22.91, -42.81]
+    ], {
+        color: '#ffff00',
+        weight: 3,
+        fillOpacity: 0.3
+    });
+    drawnItems.addLayer(testRect);
+    saveMarkingWithData(testRect, {
+        name: 'Teste Retângulo',
+        description: 'Retângulo de teste'
+    });
+    
+    console.log('✅ Todas as formas de teste criadas e salvas');
+}
+
 // Função para sincronização automática com Supabase
 async function autoSyncWithSupabase() {
     if (!window.supabaseConfig || !canSync()) return;
@@ -2355,18 +2453,22 @@ function convertMarkingToGeoJSON(marking) {
         } else if (marking.type === 'polyline') {
             geoJSON.type = 'LineString';
             // Verificar se coordinates é array ou objeto
-            if (Array.isArray(marking.coordinates)) {
+            if (Array.isArray(marking.coordinates) && marking.coordinates.length > 1) {
                 geoJSON.coordinates = marking.coordinates.map(coord => [coord.lng, coord.lat]);
+                console.log(`📏 Convertendo linha com ${marking.coordinates.length} pontos`);
             } else {
                 geoJSON.coordinates = [[marking.coordinates.lng, marking.coordinates.lat]];
+                console.log(`⚠️ Linha com apenas 1 ponto, usando coordenadas simples`);
             }
         } else if (marking.type === 'polygon') {
             geoJSON.type = 'Polygon';
             // Verificar se coordinates é array ou objeto
-            if (Array.isArray(marking.coordinates)) {
+            if (Array.isArray(marking.coordinates) && marking.coordinates.length > 2) {
                 geoJSON.coordinates = [marking.coordinates.map(coord => [coord.lng, coord.lat])];
+                console.log(`🔷 Convertendo polígono com ${marking.coordinates.length} pontos`);
             } else {
                 geoJSON.coordinates = [[[marking.coordinates.lng, marking.coordinates.lat]]];
+                console.log(`⚠️ Polígono com menos de 3 pontos, usando coordenadas simples`);
             }
         } else if (marking.type === 'circle') {
             geoJSON.type = 'Point';
@@ -2455,9 +2557,11 @@ function recreateLayerFromData(layerData, type) {
             return L.circle([layerData.lat, layerData.lng], options);
         } else if (type === 'polyline') {
             console.log(`📏 Recriando linha com ${layerData.latlngs.length} pontos`);
+            console.log(`📏 Coordenadas da linha:`, layerData.latlngs);
             return L.polyline(layerData.latlngs, layerData.options || {});
         } else if (type === 'polygon') {
             console.log(`🔷 Recriando polígono com ${layerData.latlngs.length} pontos`);
+            console.log(`🔷 Coordenadas do polígono:`, layerData.latlngs);
             return L.polygon(layerData.latlngs, layerData.options || {});
         } else if (type === 'rectangle') {
             if (layerData.bounds) {
@@ -3219,6 +3323,11 @@ function setupGeolocationEventListeners() {
     const testCircleBtn = document.getElementById('test-circle');
     if (testCircleBtn) {
         testCircleBtn.addEventListener('click', testCircleCreation);
+    }
+    
+    const testAllShapesBtn = document.getElementById('test-all-shapes');
+    if (testAllShapesBtn) {
+        testAllShapesBtn.addEventListener('click', testAllShapes);
     }
     
     const downloadOffline = document.getElementById('download-offline-pwa');
