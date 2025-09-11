@@ -2086,56 +2086,10 @@ function syncNewMarkings() {
                     console.log(`🔄 Recriando marcação ${marking.id} do tipo ${marking.type} com GeoJSON`);
                     layer = geoJSONToLayer(marking.data, marking.type);
                 } else {
-                    console.log(`🔄 Recriando marcação ${marking.id} do tipo ${marking.type} com conversão`);
-                    // Formato novo - converter para GeoJSON preservando propriedades visuais
-                    const geoJSON = convertMarkingToGeoJSON(marking);
-                    if (geoJSON) {
-                        layer = geoJSONToLayer(geoJSON, marking.type);
-                    }
+                    console.log(`⚠️ Marcação ${marking.id} sem dados preservados, pulando...`);
                 }
                 
-                // Fallbacks específicos para cada tipo de forma
-                if (!layer) {
-                    if (marking.type === 'circle' && marking.radius) {
-                        console.log(`🔵 Fallback: Recriando círculo ${marking.id} com raio ${marking.radius}`);
-                        layer = L.circle([marking.coordinates.lat, marking.coordinates.lng], {
-                            radius: marking.radius,
-                            color: '#2196F3',
-                            weight: 3,
-                            fillOpacity: 0.3
-                        });
-                    } else if (marking.type === 'rectangle' && marking.bounds) {
-                        console.log(`⬜ Fallback: Recriando retângulo ${marking.id} com bounds`);
-                        const bounds = L.latLngBounds(
-                            [marking.bounds.southWest.lat, marking.bounds.southWest.lng],
-                            [marking.bounds.northEast.lat, marking.bounds.northEast.lng]
-                        );
-                        layer = L.rectangle(bounds, {
-                            color: '#2196F3',
-                            weight: 3,
-                            fillOpacity: 0.3
-                        });
-                    } else if (marking.type === 'polygon' && marking.coordinates && marking.coordinates.length > 2) {
-                        console.log(`🔷 Fallback: Recriando polígono ${marking.id} com ${marking.coordinates.length} pontos`);
-                        const latlngs = marking.coordinates.map(coord => [coord.lat, coord.lng]);
-                        layer = L.polygon(latlngs, {
-                            color: '#2196F3',
-                            weight: 3,
-                            fillOpacity: 0.3
-                        });
-                    } else if (marking.type === 'polyline' && marking.coordinates && marking.coordinates.length > 1) {
-                        console.log(`📏 Fallback: Recriando linha ${marking.id} com ${marking.coordinates.length} pontos`);
-                        const latlngs = marking.coordinates.map(coord => [coord.lat, coord.lng]);
-                        layer = L.polyline(latlngs, {
-                            color: '#2196F3',
-                            weight: 3
-                        });
-                    } else if (marking.type === 'marker' && marking.coordinates) {
-                        console.log(`📍 Fallback: Recriando marcador ${marking.id}`);
-                        layer = L.marker([marking.coordinates.lat, marking.coordinates.lng]);
-                    }
-                }
-                
+                // Se conseguiu recriar a camada, adicionar ao mapa
                 if (layer) {
                     layer._markingId = marking.id;
                     
@@ -2156,7 +2110,7 @@ function syncNewMarkings() {
                     newMarkingsCount++;
                     console.log(`✅ Marcação ${marking.id} (${marking.type}) adicionada ao mapa`);
                 } else {
-                    console.warn(`⚠️ Falha ao recriar marcação ${marking.id} do tipo ${marking.type}`);
+                    console.log(`⚠️ Falha ao recriar marcação ${marking.id} do tipo ${marking.type}, pulando...`);
                 }
             }
         });
