@@ -1263,6 +1263,111 @@ body, html {
     box-shadow: 0 8px 25px rgba(55, 66, 250, 0.4);
 }
 
+/* Estilos para botões de sincronização específicos */
+.sync-btn {
+    background: linear-gradient(135deg, #28a745, #20c997);
+    color: white;
+    font-weight: 600;
+}
+
+.sync-btn:hover {
+    background: linear-gradient(135deg, #218838, #1ea085);
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(40, 167, 69, 0.4);
+}
+
+.sync-btn:active {
+    transform: translateY(0);
+}
+
+.sync-btn.loading {
+    background: linear-gradient(135deg, #6c757d, #495057);
+    cursor: not-allowed;
+    opacity: 0.7;
+}
+
+.offline-btn {
+    background: linear-gradient(135deg, #fd7e14, #e83e8c);
+    color: white;
+    font-weight: 600;
+}
+
+.offline-btn:hover {
+    background: linear-gradient(135deg, #e55a00, #d63384);
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(253, 126, 20, 0.4);
+}
+
+.offline-btn:active {
+    transform: translateY(0);
+}
+
+.offline-btn.disabled {
+    background: linear-gradient(135deg, #6c757d, #495057);
+    cursor: not-allowed;
+    opacity: 0.5;
+}
+
+/* Indicador de status de sincronização */
+.sync-status {
+    position: fixed;
+    top: 80px;
+    right: 20px;
+    z-index: 1001;
+    background: rgba(255, 255, 255, 0.95);
+    border-radius: 8px;
+    padding: 10px 15px;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+    backdrop-filter: blur(10px);
+    font-size: 12px;
+    font-weight: 500;
+    display: none;
+}
+
+.sync-status.syncing {
+    background: linear-gradient(135deg, #17a2b8, #138496);
+    color: white;
+}
+
+.sync-status.success {
+    background: linear-gradient(135deg, #28a745, #20c997);
+    color: white;
+}
+
+.sync-status.error {
+    background: linear-gradient(135deg, #dc3545, #c82333);
+    color: white;
+}
+
+.sync-status.offline {
+    background: linear-gradient(135deg, #fd7e14, #e83e8c);
+    color: white;
+}
+
+/* Contador de itens offline */
+.offline-counter {
+    position: absolute;
+    top: -8px;
+    right: -8px;
+    background: #dc3545;
+    color: white;
+    border-radius: 50%;
+    width: 20px;
+    height: 20px;
+    font-size: 10px;
+    font-weight: bold;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+    0% { transform: scale(1); }
+    50% { transform: scale(1.1); }
+    100% { transform: scale(1); }
+}
+
 /* Enhanced Mobile Responsiveness for Offline Features */
 @media (max-width: 768px) {
     .connection-status {
