@@ -518,6 +518,9 @@ document.addEventListener('DOMContentLoaded', function() {
     const allKeys = Object.keys(localStorage).filter(key => key.includes('controle_obra'));
     console.log('- Chaves do localStorage:', allKeys);
     
+    // Migrar marcações antigas primeiro
+    migrateOldMarkings();
+    
     // Aguardar inicialização do Supabase antes de sincronizar
     setTimeout(async () => {
         try {
@@ -525,8 +528,8 @@ document.addEventListener('DOMContentLoaded', function() {
             const isConnected = await diagnoseSupabaseConnection();
             
             if (isConnected) {
-            await syncCrossContextData();
-            console.log('✅ Sincronização inicial concluída');
+                await syncCrossContextData();
+                console.log('✅ Sincronização inicial concluída');
             } else {
                 console.warn('⚠️ Problemas de conectividade detectados, continuando em modo offline');
             }
@@ -1734,18 +1737,34 @@ function saveMarking(layer, layerType) {
     // Extrair dados específicos do tipo de camada
     let coordinates = null;
     let radius = null;
+    let bounds = null;
     
     if (layer instanceof L.Circle) {
         const center = layer.getLatLng();
         coordinates = { lat: center.lat, lng: center.lng };
         radius = layer.getRadius();
+        console.log(`🔵 Salvando círculo: centro [${center.lat}, ${center.lng}], raio ${radius}`);
     } else if (layer instanceof L.Marker) {
         const latlng = layer.getLatLng();
         coordinates = { lat: latlng.lat, lng: latlng.lng };
+        console.log(`📍 Salvando marcador: [${latlng.lat}, ${latlng.lng}]`);
     } else if (layer instanceof L.Polyline) {
         coordinates = layer.getLatLngs().map(latlng => ({ lat: latlng.lat, lng: latlng.lng }));
-    } else if (layer instanceof L.Polygon || layer instanceof L.Rectangle) {
+        console.log(`📏 Salvando linha com ${coordinates.length} pontos`);
+    } else if (layer instanceof L.Polygon) {
         coordinates = layer.getLatLngs()[0].map(latlng => ({ lat: latlng.lat, lng: latlng.lng }));
+        console.log(`🔷 Salvando polígono com ${coordinates.length} pontos`);
+    } else if (layer instanceof L.Rectangle) {
+        const rectBounds = layer.getBounds();
+        bounds = {
+            southWest: { lat: rectBounds.getSouthWest().lat, lng: rectBounds.getSouthWest().lng },
+            northEast: { lat: rectBounds.getNorthEast().lat, lng: rectBounds.getNorthEast().lng }
+        };
+        coordinates = [
+            { lat: bounds.southWest.lat, lng: bounds.southWest.lng },
+            { lat: bounds.northEast.lat, lng: bounds.northEast.lng }
+        ];
+        console.log(`⬜ Salvando retângulo: ${rectBounds.toString()}`);
     }
     
     const markingData = {
@@ -1753,6 +1772,7 @@ function saveMarking(layer, layerType) {
         type: layerType,
         coordinates: coordinates,
         radius: radius, // Preservar raio para círculos
+        bounds: bounds, // Preservar bounds para retângulos
         data: layerToGeoJSON(layer),
         timestamp: new Date().toISOString(),
         action: 'create',
@@ -2052,6 +2072,42 @@ function syncNewMarkings() {
     }
 }
 
+// Função para migrar marcações antigas que não têm dados preservados
+function migrateOldMarkings() {
+    try {
+        const savedMarkings = localStorage.getItem('controle_obra_markings');
+        if (!savedMarkings) return;
+        
+        const markings = JSON.parse(savedMarkings);
+        let migrated = 0;
+        
+        markings.forEach(marking => {
+            // Se não tem layerData mas tem data (formato antigo), tentar migrar
+            if (!marking.layerData && marking.data && marking.type === 'circle') {
+                console.log(`🔄 Migrando marcação antiga ${marking.id} do tipo ${marking.type}`);
+                
+                // Tentar extrair raio do GeoJSON
+                if (marking.data.properties && marking.data.properties.radius) {
+                    marking.radius = marking.data.properties.radius;
+                    console.log(`🔵 Raio migrado: ${marking.radius}`);
+                }
+                
+                // Marcar como migrada
+                marking.migrated = true;
+                migrated++;
+            }
+        });
+        
+        if (migrated > 0) {
+            localStorage.setItem('controle_obra_markings', JSON.stringify(markings));
+            console.log(`✅ ${migrated} marcações antigas migradas`);
+        }
+        
+    } catch (error) {
+        console.error('Erro ao migrar marcações antigas:', error);
+    }
+}
+
 // Função para sincronização automática com Supabase
 async function autoSyncWithSupabase() {
     if (!window.supabaseConfig || !canSync()) return;
@@ -2154,8 +2210,10 @@ function convertMarkingToGeoJSON(marking) {
         } else if (marking.type === 'circle') {
             geoJSON.type = 'Point';
             geoJSON.coordinates = [marking.coordinates.lng, marking.coordinates.lat];
-            geoJSON.properties.radius = marking.radius || marking.properties?.radius;
+            // Priorizar raio da marcação, depois das propriedades, depois padrão
+            geoJSON.properties.radius = marking.radius || marking.properties?.radius || 100;
             geoJSON.properties.isCircle = true; // Marcar como círculo
+            console.log(`🔵 Convertendo círculo para GeoJSON: raio ${geoJSON.properties.radius}`);
         }
         
         return geoJSON;
@@ -2169,6 +2227,7 @@ function convertMarkingToGeoJSON(marking) {
 function recreateLayerFromData(layerData, type) {
     try {
         if (type === 'marker' || type === 'point') {
+            console.log(`📍 Recriando marcador em [${layerData.lat}, ${layerData.lng}]`);
             return L.marker([layerData.lat, layerData.lng], layerData.options || {});
         } else if (type === 'circle') {
             // Garantir que o raio seja preservado
@@ -2176,11 +2235,29 @@ function recreateLayerFromData(layerData, type) {
             if (layerData.radius) {
                 options.radius = layerData.radius;
             }
+            console.log(`🔵 Recriando círculo: centro [${layerData.lat}, ${layerData.lng}], raio ${layerData.radius}`);
             return L.circle([layerData.lat, layerData.lng], options);
         } else if (type === 'polyline') {
+            console.log(`📏 Recriando linha com ${layerData.latlngs.length} pontos`);
             return L.polyline(layerData.latlngs, layerData.options || {});
         } else if (type === 'polygon') {
+            console.log(`🔷 Recriando polígono com ${layerData.latlngs.length} pontos`);
             return L.polygon(layerData.latlngs, layerData.options || {});
+        } else if (type === 'rectangle') {
+            if (layerData.bounds) {
+                // Usar bounds preservados
+                const bounds = L.latLngBounds(
+                    [layerData.bounds.southWest.lat, layerData.bounds.southWest.lng],
+                    [layerData.bounds.northEast.lat, layerData.bounds.northEast.lng]
+                );
+                console.log(`⬜ Recriando retângulo com bounds: ${bounds.toString()}`);
+                return L.rectangle(bounds, layerData.options || {});
+            } else if (layerData.latlngs && layerData.latlngs.length === 2) {
+                // Usar coordenadas preservadas
+                const bounds = L.latLngBounds(layerData.latlngs);
+                console.log(`⬜ Recriando retângulo com coordenadas: ${bounds.toString()}`);
+                return L.rectangle(bounds, layerData.options || {});
+            }
         }
         return null;
     } catch (error) {
@@ -2247,25 +2324,46 @@ function extractLayerData(layer) {
             return {
                 lat: latlng.lat,
                 lng: latlng.lng,
-                options: layer.options || {}
+                options: { ...layer.options } || {}
             };
         } else if (layer instanceof L.Circle) {
             const center = layer.getLatLng();
+            const radius = layer.getRadius();
+            console.log(`🔵 Extraindo círculo: centro [${center.lat}, ${center.lng}], raio ${radius}`);
             return {
                 lat: center.lat,
                 lng: center.lng,
-                radius: layer.getRadius(),
-                options: layer.options || {}
+                radius: radius,
+                options: { ...layer.options } || {}
             };
         } else if (layer instanceof L.Polyline) {
+            const latlngs = layer.getLatLngs();
+            console.log(`📏 Extraindo linha com ${latlngs.length} pontos`);
             return {
-                latlngs: layer.getLatLngs(),
-                options: layer.options || {}
+                latlngs: latlngs,
+                options: { ...layer.options } || {}
             };
-        } else if (layer instanceof L.Polygon || layer instanceof L.Rectangle) {
+        } else if (layer instanceof L.Polygon) {
+            const latlngs = layer.getLatLngs()[0];
+            console.log(`🔷 Extraindo polígono com ${latlngs.length} pontos`);
             return {
-                latlngs: layer.getLatLngs()[0],
-                options: layer.options || {}
+                latlngs: latlngs,
+                options: { ...layer.options } || {}
+            };
+        } else if (layer instanceof L.Rectangle) {
+            const bounds = layer.getBounds();
+            const latlngs = [
+                [bounds.getSouthWest().lat, bounds.getSouthWest().lng],
+                [bounds.getNorthEast().lat, bounds.getNorthEast().lng]
+            ];
+            console.log(`⬜ Extraindo retângulo: ${bounds.toString()}`);
+            return {
+                latlngs: latlngs,
+                bounds: {
+                    southWest: { lat: bounds.getSouthWest().lat, lng: bounds.getSouthWest().lng },
+                    northEast: { lat: bounds.getNorthEast().lat, lng: bounds.getNorthEast().lng }
+                },
+                options: { ...layer.options } || {}
             };
         }
         return null;
