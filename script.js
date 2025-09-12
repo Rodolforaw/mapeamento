@@ -224,18 +224,31 @@ function initializeMap() {
     });
 
 
-    // Evento de clique em obra - Mostrar informações
+    // Evento de clique no mapa (apenas para áreas vazias)
     map.on('click', function(e) {
-        // Lógica de clique será implementada se necessário
+        // Fechar qualquer popup aberto
+        map.closePopup();
     });
 
     // Evento de clique em obra específica
     drawnItems.on('click', function(e) {
         const layer = e.layer;
+        
+        // Verificar se é uma marcação existente
         if (layer.workId) {
-            // Marcação existente - não abrir modal, deixar popup funcionar
             console.log('Marcação existente clicada:', layer.workName);
-            return; // Não fazer nada, deixar o popup do Leaflet funcionar
+            
+            // Parar a propagação do evento para evitar conflitos
+            if (e.originalEvent) {
+                e.originalEvent.stopPropagation();
+                e.originalEvent.preventDefault();
+            }
+            
+            // Abrir popup da marcação existente
+            layer.openPopup();
+            
+            // Não abrir modal de nova marcação
+            return false;
         }
     });
 }
@@ -1345,25 +1358,30 @@ function createWorkFromData(workData) {
         work.workDate = workData.date || new Date().toISOString().split('T')[0];
         work.isSelected = false;
         
-        // Adicionar popup
+        // Adicionar popup com informações completas
         work.bindPopup(`
-            <div class="work-popup">
-                <h4>${work.workName}</h4>
-                <p><strong>OS:</strong> ${work.workNumber}</p>
-                <p><strong>Produto:</strong> ${work.workProduct}</p>
-                <p><strong>Medida:</strong> ${work.workMeasure}</p>
-                <p><strong>Observação:</strong> ${work.workObservation}</p>
-                <button onclick="editWorkFromPopup('${work.workId}')" class="edit-work-btn">Editar</button>
+            <div class="work-popup" style="min-width: 250px; font-family: Arial, sans-serif;">
+                <div style="background: #6d28d9; color: white; padding: 8px; margin: -8px -8px 8px -8px; border-radius: 4px 4px 0 0;">
+                    <h4 style="margin: 0; font-size: 16px;">${work.workName}</h4>
+                </div>
+                <div style="padding: 4px 0;">
+                    <p style="margin: 4px 0; font-size: 14px;"><strong>OS:</strong> ${work.workNumber || 'Não informado'}</p>
+                    <p style="margin: 4px 0; font-size: 14px;"><strong>Produto:</strong> ${work.workProduct || 'Não informado'}</p>
+                    <p style="margin: 4px 0; font-size: 14px;"><strong>Medida:</strong> ${work.workMeasure || 'Não informado'}</p>
+                    <p style="margin: 4px 0; font-size: 14px;"><strong>Status:</strong> ${work.workStatus || 'Planejamento'}</p>
+                    <p style="margin: 4px 0; font-size: 14px;"><strong>Data:</strong> ${work.workDate || 'Hoje'}</p>
+                    ${work.workObservation ? `<p style="margin: 4px 0; font-size: 14px;"><strong>Observação:</strong> ${work.workObservation}</p>` : ''}
+                </div>
+                <div style="text-align: center; margin-top: 8px; padding-top: 8px; border-top: 1px solid #e5e7eb;">
+                    <button onclick="editWorkFromPopup('${work.workId}')" 
+                            style="background: #6d28d9; color: white; border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer; font-size: 12px;">
+                        ✏️ Editar
+                    </button>
+                </div>
             </div>
         `);
         
-        // Adicionar evento de clique para editar (apenas se não for um popup)
-        work.on('click', function(e) {
-            // Evitar duplicação do modal
-            if (e.originalEvent && e.originalEvent.target.tagName !== 'BUTTON') {
-                editWorkFromPopup(work.workId);
-            }
-        });
+        // Event listener individual removido - usando o global do drawnItems
         
         // Log apenas uma vez
         console.log('Obra criada:', work.workName);
