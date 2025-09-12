@@ -1,11 +1,11 @@
 // Service Worker para PWA - Controle de Obra
-const CACHE_NAME = 'controle-obra-v1';
+const CACHE_NAME = 'controle-obra-v2';
 const urlsToCache = [
-  '/',
-  '/index.html',
-  '/script.js',
-  '/config.js',
-  '/manifest.json',
+  './',
+  './index.html',
+  './script.js',
+  './config.js',
+  './manifest.json',
   'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css',
   'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js',
   'https://unpkg.com/leaflet-draw@1.0.4/dist/leaflet.draw.css',
