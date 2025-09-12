@@ -1153,12 +1153,27 @@ async function deleteWorkOffline(workId) {
 
 // Obter dados da obra a partir da layer
 function getWorkDataFromLayer(layer) {
+    // Obter geometria baseada no tipo de layer
+    let geometry;
+    if (layer instanceof L.Marker) {
+        const latLng = layer.getLatLng();
+        geometry = { lat: latLng.lat, lng: latLng.lng };
+    } else if (layer instanceof L.Polygon) {
+        const latLngs = layer.getLatLngs()[0];
+        geometry = { paths: latLngs.map(latLng => ({ lat: latLng.lat, lng: latLng.lng })) };
+    } else if (layer instanceof L.Polyline) {
+        const latLngs = layer.getLatLngs();
+        geometry = { path: latLngs.map(latLng => ({ lat: latLng.lat, lng: latLng.lng })) };
+    } else {
+        geometry = {};
+    }
+    
     return {
         id: layer.workId,
         name: layer.workName,
         description: layer.workDescription,
         type: layer.workType,
-        geometry: JSON.stringify(getGeometryData(layer)),
+        geometry: JSON.stringify(geometry),
         work_number: layer.workNumber,
         product: layer.workProduct,
         measure: layer.workMeasure,
