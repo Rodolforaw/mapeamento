@@ -259,6 +259,21 @@ function initializeEventListeners() {
         }
     });
     
+    // Instruções de uso
+    document.getElementById('closeInstructions').addEventListener('click', function() {
+        document.getElementById('usageInstructions').style.display = 'none';
+    });
+    
+    // Mostrar instruções no mobile na primeira vez
+    if (window.innerWidth <= 768) {
+        setTimeout(() => {
+            const instructions = document.getElementById('usageInstructions');
+            if (instructions) {
+                instructions.style.display = 'block';
+            }
+        }, 2000);
+    }
+    
     // Modal
     document.getElementById('closeModal').addEventListener('click', hideWorkModal);
     document.getElementById('cancelWork').addEventListener('click', hideWorkModal);
