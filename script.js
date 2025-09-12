@@ -115,9 +115,30 @@ function initializeMap() {
                     iconAnchor: [10, 10]
                 })
             },
-            circle: false,
-            rectangle: false,
-            circlemarker: false
+            circle: {
+                shapeOptions: {
+                    color: CONFIG.COLORS.primary,
+                    fillColor: CONFIG.COLORS.primary,
+                    fillOpacity: 0.3,
+                    weight: 2
+                }
+            },
+            rectangle: {
+                shapeOptions: {
+                    color: CONFIG.COLORS.primary,
+                    fillColor: CONFIG.COLORS.primary,
+                    fillOpacity: 0.3,
+                    weight: 2
+                }
+            },
+            circlemarker: {
+                shapeOptions: {
+                    color: CONFIG.COLORS.primary,
+                    fillColor: CONFIG.COLORS.primary,
+                    fillOpacity: 0.3,
+                    weight: 2
+                }
+            }
         },
         edit: {
             featureGroup: drawnItems,
@@ -1166,6 +1187,31 @@ function getWorkDataFromLayer(layer) {
     } else if (layer instanceof L.Polyline) {
         const latLngs = layer.getLatLngs();
         geometry = { path: latLngs.map(latLng => ({ lat: latLng.lat, lng: latLng.lng })) };
+    } else if (layer instanceof L.Circle) {
+        const center = layer.getLatLng();
+        const radius = layer.getRadius();
+        geometry = { 
+            center: { lat: center.lat, lng: center.lng }, 
+            radius: radius 
+        };
+    } else if (layer instanceof L.Rectangle) {
+        const bounds = layer.getBounds();
+        geometry = {
+            bounds: {
+                north: bounds.getNorth(),
+                south: bounds.getSouth(),
+                east: bounds.getEast(),
+                west: bounds.getWest()
+            }
+        };
+    } else if (layer instanceof L.CircleMarker) {
+        const latLng = layer.getLatLng();
+        const radius = layer.getRadius();
+        geometry = { 
+            lat: latLng.lat, 
+            lng: latLng.lng, 
+            radius: radius 
+        };
     } else {
         geometry = {};
     }
@@ -1241,6 +1287,45 @@ function createWorkFromData(workData) {
                 return null;
             }
             work = L.polyline(geometry.path);
+        } else if (workData.type === 'circle') {
+            if (!geometry.center || !geometry.radius) {
+                console.error('Dados inválidos para círculo:', workData.name, geometry);
+                return null;
+            }
+            work = L.circle([geometry.center.lat, geometry.center.lng], {
+                radius: geometry.radius,
+                color: CONFIG.COLORS.primary,
+                fillColor: CONFIG.COLORS.primary,
+                fillOpacity: 0.3,
+                weight: 2
+            });
+        } else if (workData.type === 'rectangle') {
+            if (!geometry.bounds) {
+                console.error('Bounds inválidos para retângulo:', workData.name, geometry);
+                return null;
+            }
+            const bounds = L.latLngBounds(
+                [geometry.bounds.south, geometry.bounds.west],
+                [geometry.bounds.north, geometry.bounds.east]
+            );
+            work = L.rectangle(bounds, {
+                color: CONFIG.COLORS.primary,
+                fillColor: CONFIG.COLORS.primary,
+                fillOpacity: 0.3,
+                weight: 2
+            });
+        } else if (workData.type === 'circlemarker') {
+            if (!geometry.lat || !geometry.lng) {
+                console.error('Coordenadas inválidas para círculo marcador:', workData.name, geometry);
+                return null;
+            }
+            work = L.circleMarker([geometry.lat, geometry.lng], {
+                radius: geometry.radius || 10,
+                color: CONFIG.COLORS.primary,
+                fillColor: CONFIG.COLORS.primary,
+                fillOpacity: 0.3,
+                weight: 2
+            });
         } else {
             console.error('Tipo de obra inválido:', workData.type, 'para obra:', workData.name);
             return null;
@@ -1832,6 +1917,32 @@ function prepareKMLDataForSupabase(workData) {
                     lat: coord.lat,
                     lng: coord.lng
                 }))
+            };
+        } else if (workData.workType === 'circle') {
+            workType = 'circle';
+            geometry = {
+                center: {
+                    lat: workData.center.lat,
+                    lng: workData.center.lng
+                },
+                radius: workData.radius
+            };
+        } else if (workData.workType === 'rectangle') {
+            workType = 'rectangle';
+            geometry = {
+                bounds: {
+                    north: workData.bounds.north,
+                    south: workData.bounds.south,
+                    east: workData.bounds.east,
+                    west: workData.bounds.west
+                }
+            };
+        } else if (workData.workType === 'circlemarker') {
+            workType = 'circlemarker';
+            geometry = {
+                lat: workData.position.lat,
+                lng: workData.position.lng,
+                radius: workData.radius
             };
         }
         
