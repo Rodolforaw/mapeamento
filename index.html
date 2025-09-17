@@ -1,0 +1,1188 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="theme-color" content="#6d28d9">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <meta name="apple-mobile-web-app-title" content="Mapeamento Obra">
+    <title>Mapa de Obras</title>
+    
+    <!-- PWA Manifest -->
+    <link rel="manifest" href="manifest.json">
+    
+    <!-- Apple Touch Icons -->
+    <link rel="apple-touch-icon" href="./somar.png">
+    <link rel="icon" href="./somar.png">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet-draw@1.0.4/dist/leaflet.draw.css" />
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: Arial, sans-serif;
+            overflow: hidden;
+        }
+        
+        #map {
+            width: 100vw;
+            height: 100vh;
+        }
+        
+        
+        
+        /* Menu hambúrguer */
+        .hamburger-menu {
+            position: fixed;
+            top: 20px;
+            left: 20px;
+            z-index: 1000;
+        }
+        
+        .menu-btn {
+            width: 50px;
+            height: 50px;
+            border: none;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.95);
+            color: #6d28d9;
+            font-size: 18px;
+            cursor: pointer;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .menu-btn:hover {
+            background: #6d28d9;
+            color: white;
+            transform: scale(1.05);
+        }
+        
+        /* Menu lateral */
+        .side-menu {
+            position: fixed;
+            top: 0;
+            left: -350px;
+            width: 350px;
+            height: 100vh;
+            background: white;
+            box-shadow: 2px 0 10px rgba(0,0,0,0.3);
+            z-index: 999;
+            transition: left 0.3s ease;
+            overflow-y: auto;
+        }
+        
+        .side-menu.open {
+            left: 0;
+        }
+        
+        .menu-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 20px;
+            background: #6d28d9;
+            color: white;
+        }
+        
+        .menu-header h3 {
+            margin: 0;
+            font-size: 18px;
+        }
+        
+        .close-menu {
+            background: none;
+            border: none;
+            color: white;
+            font-size: 20px;
+            cursor: pointer;
+            padding: 5px;
+            border-radius: 3px;
+            transition: background 0.2s ease;
+        }
+        
+        .close-menu:hover {
+            background: rgba(255, 255, 255, 0.2);
+        }
+        
+        .menu-content {
+            padding: 20px;
+        }
+        
+        .menu-section {
+            margin-bottom: 25px;
+        }
+        
+        .menu-section h4 {
+            margin: 0 0 15px 0;
+            color: #333;
+            font-size: 16px;
+            border-bottom: 2px solid #f0f0f0;
+            padding-bottom: 8px;
+        }
+        
+        .menu-section select {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            font-size: 14px;
+            background: white;
+        }
+        
+        .menu-buttons {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+        
+        .menu-action-btn {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 12px 15px;
+            border: none;
+            border-radius: 8px;
+            background: #f8f9fa;
+            color: #333;
+            font-size: 14px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            text-align: left;
+        }
+        
+        .menu-action-btn:hover {
+            background: #6d28d9;
+            color: white;
+            transform: translateX(5px);
+        }
+        
+        .menu-action-btn.danger {
+            background-color: #dc2626;
+        }
+        
+        .menu-action-btn.danger:hover {
+            background-color: #b91c1c;
+        }
+        
+        .sync-status {
+            margin-bottom: 15px;
+            padding: 10px;
+            background: #f8f9fa;
+            border-radius: 8px;
+            border-left: 4px solid #6d28d9;
+        }
+        
+        .status-indicator {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 5px;
+        }
+        
+        .status-indicator i {
+            font-size: 12px;
+            color: #6b7280;
+        }
+        
+        .status-indicator.connected i {
+            color: #10b981;
+        }
+        
+        .status-indicator.syncing i {
+            color: #f59e0b;
+            animation: spin 1s linear infinite;
+        }
+        
+        .status-indicator.error i {
+            color: #ef4444;
+        }
+        
+        .last-sync {
+            font-size: 12px;
+            color: #6b7280;
+        }
+        
+        /* Estilos para localização GPS */
+        .location-status {
+            margin-bottom: 15px;
+        }
+        
+        .location-info {
+            margin-top: 8px;
+            padding: 8px;
+            background: #f3f4f6;
+            border-radius: 4px;
+            font-family: monospace;
+        }
+        
+        .location-info small {
+            color: #6b7280;
+            font-size: 11px;
+        }
+        
+        /* Marcador de localização GPS */
+        .location-marker {
+            background: transparent;
+            border: none;
+        }
+        
+        .location-pulse {
+            width: 20px;
+            height: 20px;
+            background: #ef4444;
+            border: 3px solid white;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 10px;
+            animation: locationPulse 2s infinite;
+            box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7);
+        }
+        
+        @keyframes locationPulse {
+            0% {
+                transform: scale(0.95);
+                box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7);
+            }
+            70% {
+                transform: scale(1);
+                box-shadow: 0 0 0 10px rgba(239, 68, 68, 0);
+            }
+            100% {
+                transform: scale(0.95);
+                box-shadow: 0 0 0 0 rgba(239, 68, 68, 0);
+            }
+        }
+        
+        @keyframes spin {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+        }
+        
+        /* Botão de sincronização flutuante para mobile */
+        .sync-float-btn {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            width: 60px;
+            height: 60px;
+            background: #6d28d9;
+            color: white;
+            border: none;
+            border-radius: 50%;
+            font-size: 24px;
+            cursor: pointer;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+            z-index: 1000;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.3s ease;
+        }
+        
+        .sync-float-btn i {
+            color: white !important;
+            font-size: 20px;
+        }
+        
+        .sync-float-btn::after {
+            content: "Sincronizar";
+            position: absolute;
+            bottom: -30px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0,0,0,0.8);
+            color: white;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            white-space: nowrap;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.3s ease;
+        }
+        
+        .sync-float-btn:hover::after {
+            opacity: 1;
+        }
+        
+        /* Instruções de uso */
+        .usage-instructions {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: white;
+            border: 2px solid #6d28d9;
+            border-radius: 12px;
+            padding: 20px;
+            box-shadow: 0 8px 25px rgba(0,0,0,0.3);
+            z-index: 10001;
+            max-width: 300px;
+            display: none;
+        }
+        
+        .instruction-content h3 {
+            margin: 0 0 15px 0;
+            color: #6d28d9;
+            font-size: 18px;
+        }
+        
+        .instruction-content p {
+            margin: 8px 0;
+            font-size: 14px;
+            line-height: 1.4;
+        }
+        
+        .close-btn {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background: #ef4444;
+            color: white;
+            border: none;
+            border-radius: 50%;
+            width: 25px;
+            height: 25px;
+            cursor: pointer;
+            font-size: 12px;
+        }
+        
+        .close-btn:hover {
+            background: #dc2626;
+        }
+        
+        .sync-float-btn:hover {
+            background: #5a21b5;
+            transform: scale(1.1);
+        }
+        
+        .sync-float-btn.syncing {
+            animation: spin 1s linear infinite;
+        }
+        
+        /* Otimizações para dispositivos móveis */
+        @media (max-width: 768px) {
+            .sync-float-btn {
+                display: flex;
+            }
+            
+            .hamburger-menu {
+                top: 10px;
+                left: 10px;
+                width: 45px;
+                height: 45px;
+            }
+            
+            .side-menu {
+                width: 280px;
+                left: -280px;
+            }
+            
+            .side-menu.open {
+                left: 0;
+            }
+            
+            .menu-section h4 {
+                font-size: 14px;
+            }
+            
+            .menu-action-btn {
+                padding: 12px 15px;
+                font-size: 14px;
+            }
+            
+            .sync-status {
+                padding: 8px;
+            }
+            
+            .status-indicator {
+                font-size: 12px;
+            }
+            
+        .last-sync {
+            font-size: 11px;
+        }
+        }
+        
+        /* Estilos para popup de obra */
+        .work-popup {
+            min-width: 280px;
+            max-width: 350px;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        
+        .work-popup h4 {
+            margin: 0 0 10px 0;
+            color: #6d28d9;
+            font-size: 16px;
+            font-weight: 600;
+        }
+        
+        .work-popup p {
+            margin: 5px 0;
+            font-size: 14px;
+            color: #374151;
+        }
+        
+        .edit-work-btn {
+            background: linear-gradient(135deg, #6d28d9, #5a21b5);
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 13px;
+            font-weight: 500;
+            margin-top: 10px;
+            width: 100%;
+            transition: all 0.2s ease;
+            box-shadow: 0 2px 4px rgba(109, 40, 217, 0.3);
+        }
+        
+        .edit-work-btn:hover {
+            background: linear-gradient(135deg, #5a21b5, #4c1d95);
+            transform: translateY(-1px);
+            box-shadow: 0 4px 8px rgba(109, 40, 217, 0.4);
+        }
+        
+        /* Estilos para informações estruturadas */
+        .work-info-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px;
+            margin-bottom: 12px;
+        }
+        
+        .work-info-item {
+            background: #f8f9fa;
+            padding: 8px;
+            border-radius: 4px;
+            border-left: 3px solid #6d28d9;
+        }
+        
+        .work-info-label {
+            font-size: 11px;
+            color: #6b7280;
+            text-transform: uppercase;
+            font-weight: 600;
+            margin-bottom: 2px;
+        }
+        
+        .work-info-value {
+            font-size: 14px;
+            font-weight: 500;
+            color: #374151;
+        }
+        
+        .work-info-full {
+            margin-bottom: 8px;
+        }
+        
+        .work-info-full .work-info-label {
+            margin-bottom: 4px;
+        }
+        
+        .work-info-full .work-info-value {
+            background: #f8f9fa;
+            padding: 6px 8px;
+            border-radius: 4px;
+            display: block;
+        }
+        
+        /* Estilos para tabela de obras */
+        #worksTable {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        
+        #worksTable th {
+            font-weight: 600;
+            font-size: 12px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        
+        #worksTable th:hover {
+            background: #5a21b5;
+        }
+        
+        #worksTable td {
+            padding: 10px 8px;
+            border: 1px solid #e5e7eb;
+            vertical-align: middle;
+        }
+        
+        #worksTable tbody tr {
+            transition: background-color 0.2s ease;
+        }
+        
+        #worksTable tbody tr:hover {
+            background-color: #f8f9fa;
+        }
+        
+        #worksTable tbody tr:nth-child(even) {
+            background-color: #fafafa;
+        }
+        
+        #worksTable tbody tr:nth-child(even):hover {
+            background-color: #f0f0f0;
+        }
+        
+        .status-badge {
+            padding: 4px 8px;
+            border-radius: 12px;
+            font-size: 11px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        
+        .status-planejamento {
+            background: #fef3c7;
+            color: #92400e;
+        }
+        
+        .status-em_andamento {
+            background: #dbeafe;
+            color: #1e40af;
+        }
+        
+        .status-pausada {
+            background: #fee2e2;
+            color: #dc2626;
+        }
+        
+        .status-concluida {
+            background: #d1fae5;
+            color: #065f46;
+        }
+        
+        .table-action-btn {
+            padding: 4px 8px;
+            margin: 2px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 11px;
+            transition: all 0.2s ease;
+        }
+        
+        .table-action-btn:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+        }
+        
+        .btn-view {
+            background: #3b82f6;
+            color: white;
+        }
+        
+        .btn-edit {
+            background: #6d28d9;
+            color: white;
+        }
+        
+        .btn-delete {
+            background: #ef4444;
+            color: white;
+        }
+        
+        .btn-download {
+            background: #10b981;
+            color: white;
+        }
+        
+        .table-search-container {
+            position: relative;
+        }
+        
+        .table-search-container i {
+            position: absolute;
+            right: 12px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: #9ca3af;
+        }
+        
+        .menu-action-btn i {
+            font-size: 16px;
+            width: 20px;
+        }
+        
+        .menu-info {
+            margin: 0;
+            color: #666;
+            font-size: 13px;
+            line-height: 1.5;
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 8px;
+            border-left: 4px solid #6d28d9;
+        }
+        
+        /* Modal */
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            z-index: 2000;
+        }
+        
+        .modal.show {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .modal-content {
+            background: white;
+            border-radius: 10px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+            max-width: 500px;
+            width: 90%;
+            max-height: 90vh;
+            overflow-y: auto;
+        }
+        
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 20px;
+            border-bottom: 1px solid #eee;
+        }
+        
+        .modal-header h3 {
+            margin: 0;
+            color: #333;
+        }
+        
+        .close-btn {
+            background: none;
+            border: none;
+            font-size: 24px;
+            cursor: pointer;
+            color: #999;
+        }
+        
+        .close-btn:hover {
+            color: #333;
+        }
+        
+        .modal-body {
+            padding: 20px;
+        }
+        
+        .modal-footer {
+            display: flex;
+            justify-content: flex-end;
+            gap: 10px;
+            padding: 20px;
+            border-top: 1px solid #eee;
+        }
+        
+        .form-group {
+            margin-bottom: 15px;
+        }
+        
+        .form-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: 500;
+            color: #333;
+        }
+        
+        .form-group input,
+        .form-group textarea {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            font-size: 14px;
+            box-sizing: border-box;
+        }
+        
+        .form-group input:focus,
+        .form-group textarea:focus {
+            outline: none;
+            border-color: #6d28d9;
+            box-shadow: 0 0 0 2px rgba(109, 40, 217, 0.1);
+        }
+        
+        .btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 5px;
+            font-size: 14px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+        
+        .btn-primary {
+            background: #6d28d9;
+            color: white;
+        }
+        
+        .btn-primary:hover {
+            background: #5b21b6;
+        }
+        
+        .btn-secondary {
+            background: #6b7280;
+            color: white;
+        }
+        
+        .btn-secondary:hover {
+            background: #4b5563;
+        }
+        
+        .toast {
+            position: fixed;
+            top: 80px;
+            right: 20px;
+            background: white;
+            padding: 15px;
+            border-radius: 5px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.3);
+            z-index: 1000;
+            display: none;
+        }
+        
+        .toast.show {
+            display: block;
+        }
+        
+        .toast.success {
+            border-left: 4px solid #10b981;
+        }
+        
+        .toast.error {
+            border-left: 4px solid #ef4444;
+        }
+        
+        .toast.warning {
+            border-left: 4px solid #f59e0b;
+        }
+    </style>
+</head>
+<body>
+    <!-- Mapa -->
+    <div id="map"></div>
+    
+    <!-- Botão de sincronização flutuante para mobile -->
+    <button id="syncFloatBtn" class="sync-float-btn" title="Sincronizar">
+        <i class="fas fa-sync-alt"></i>
+    </button>
+            
+    <!-- Instruções de uso -->
+    <div id="usageInstructions" class="usage-instructions">
+        <div class="instruction-content">
+            <h3>📱 Como usar no celular:</h3>
+            <p><strong>1.</strong> Use os controles no topo para desenhar</p>
+            <p><strong>2.</strong> Clique em "Finish" para finalizar o desenho</p>
+            <p><strong>3.</strong> Preencha as informações da obra</p>
+            <p><strong>4.</strong> Botão roxo = Sincronizar com PC</p>
+            <button id="closeInstructions" class="close-btn">✕</button>
+        </div>
+    </div>
+    
+    <!-- Botão hambúrguer -->
+    <div class="hamburger-menu">
+        <button id="menuToggle" class="menu-btn">
+            <i class="fas fa-bars"></i>
+        </button>
+    </div>
+    
+    <!-- Menu lateral -->
+    <div id="sideMenu" class="side-menu">
+        <div class="menu-header">
+            <h3>Controles</h3>
+            <button id="closeMenu" class="close-menu">
+                <i class="fas fa-times"></i>
+            </button>
+                    </div>
+                    
+        <div class="menu-content">
+            <div class="menu-section">
+                <h4>Camada do Mapa</h4>
+                <select id="layerSelect">
+                    <option value="streets">Ruas</option>
+                    <option value="satellite">Satélite</option>
+                    <option value="topo">Topografia</option>
+                </select>
+                </div>
+                
+            <div class="menu-section">
+                <h4>Arquivos KMZ/KML</h4>
+                <div class="menu-buttons">
+                    <button id="importBtn" class="menu-action-btn">
+                        <i class="fas fa-upload"></i>
+                        <span>Importar KMZ/KML</span>
+                    </button>
+                    <button id="exportBtn" class="menu-action-btn">
+                        <i class="fas fa-download"></i>
+                        <span>Exportar KMZ</span>
+                    </button>
+                </div>
+                </div>
+                
+            <div class="menu-section">
+                <h4>Localização GPS</h4>
+                <div class="location-status">
+                    <div class="status-indicator" id="locationStatus">
+                        <i class="fas fa-map-marker-alt"></i>
+                        <span id="locationStatusText">Localização desabilitada</span>
+                    </div>
+                    <div class="location-info" id="locationInfo" style="display: none;">
+                        <small>Lat: <span id="currentLat">-</span></small><br>
+                        <small>Lng: <span id="currentLng">-</span></small>
+                    </div>
+                </div>
+                <div class="menu-buttons">
+                    <button id="locationBtn" class="menu-action-btn">
+                        <i class="fas fa-crosshairs"></i>
+                        <span>Ativar Localização</span>
+                    </button>
+                    <button id="centerMapBtn" class="menu-action-btn" style="display: none;">
+                        <i class="fas fa-location-arrow"></i>
+                        <span>Centralizar no GPS</span>
+                    </button>
+                </div>
+            </div>
+            
+            <div class="menu-section">
+                <h4>Sincronização</h4>
+                <div class="sync-status">
+                    <div class="status-indicator" id="syncStatus">
+                        <i class="fas fa-circle"></i>
+                        <span id="syncStatusText">Conectando...</span>
+                    </div>
+                    <div class="last-sync" id="lastSync">
+                        Última sincronização: Nunca
+                    </div>
+                </div>
+                <div class="menu-buttons">
+                    <button id="syncBtn" class="menu-action-btn">
+                        <i class="fas fa-sync-alt"></i>
+                        <span>Sincronizar Agora</span>
+                    </button>
+                    <button id="testConnectionBtn" class="menu-action-btn">
+                        <i class="fas fa-wifi"></i>
+                        <span>Testar Conexão</span>
+                    </button>
+                    <button id="cleanWorksBtn" class="menu-action-btn">
+                        <i class="fas fa-broom"></i>
+                        <span>Limpar Obras Problemáticas</span>
+                    </button>
+                    <button id="clearBtn" class="menu-action-btn">
+                        <i class="fas fa-trash"></i>
+                        <span>Limpar Mapa</span>
+                    </button>
+                </div>
+            </div>
+            
+            <div class="menu-section">
+                <h4>Gestão de Dados</h4>
+                <div class="menu-buttons">
+                    <button id="viewTableBtn" class="menu-action-btn">
+                        <i class="fas fa-table"></i>
+                        <span>Ver Tabela de Obras</span>
+                    </button>
+                    <button id="exportExcelBtn" class="menu-action-btn">
+                        <i class="fas fa-file-excel"></i>
+                        <span>Exportar Excel</span>
+                    </button>
+                    <button id="clearSectionBtn" class="menu-action-btn danger">
+                        <i class="fas fa-broom"></i>
+                        <span>Limpar Seção</span>
+                    </button>
+                    <button id="backupBtn" class="menu-action-btn">
+                        <i class="fas fa-download"></i>
+                        <span>Backup Completo</span>
+                    </button>
+                </div>
+            </div>
+            
+            <div class="menu-section">
+                <h4>App</h4>
+                <div class="menu-buttons">
+                    <button id="installPWA" class="menu-action-btn" style="display: none;">
+                        <i class="fas fa-mobile-alt"></i>
+                        <span>Instalar App</span>
+                    </button>
+                </div>
+            </div>
+            
+            <div class="menu-section">
+                <h4>Informações</h4>
+                <p class="menu-info">Use os controles nativos do mapa para desenhar obras. Após desenhar, preencha as informações no popup que aparece.</p>
+            </div>
+        </div>
+    </div>
+
+    
+    
+    <!-- Toast de notificação -->
+    <div id="toast" class="toast"></div>
+    
+    <!-- Modal para informações da obra -->
+    <div id="workModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Informações da Obra</h3>
+                <button class="close-btn" id="closeModal">&times;</button>
+            </div>
+            <div class="modal-body">
+                <form id="workForm">
+                    <div class="form-group">
+                        <label for="workNumber">Número da OS:</label>
+                        <input type="text" id="workNumber" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="workProduct">Produto:</label>
+                        <input type="text" id="workProduct" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="workMeasure">Medida:</label>
+                        <input type="text" id="workMeasure" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="workObservation">Observação:</label>
+                        <textarea id="workObservation" rows="3"></textarea>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" id="cancelWork">Cancelar</button>
+                <button type="button" class="btn btn-primary" id="saveWork">Salvar</button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Modal para tabela de obras -->
+    <div id="tableModal" class="modal">
+        <div class="modal-content" style="max-width: 95vw; width: 95vw; max-height: 90vh;">
+            <div class="modal-header">
+                <h3>Tabela de Obras - Maricá</h3>
+                <div style="display: flex; gap: 10px; align-items: center;">
+                    <button id="closeTableBtn" class="btn btn-secondary" style="padding: 8px 16px; font-size: 12px;">
+                        <i class="fas fa-times"></i> Fechar
+                    </button>
+                    <button class="close-btn" id="closeTableModal">&times;</button>
+                </div>
+            </div>
+            <div class="modal-body" style="padding: 0; overflow: hidden;">
+                <!-- Controles da tabela -->
+                <div style="padding: 15px; background: #f8f9fa; border-bottom: 1px solid #e5e7eb;">
+                    <div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
+                        <div style="flex: 1; min-width: 200px;">
+                            <input type="text" id="tableSearch" placeholder="Buscar obras..." 
+                                   style="width: 100%; padding: 8px 12px; border: 1px solid #ddd; border-radius: 4px; font-size: 14px;">
+                        </div>
+                        <select id="statusFilter" style="padding: 8px 12px; border: 1px solid #ddd; border-radius: 4px; font-size: 14px;">
+                            <option value="">Todos os Status</option>
+                            <option value="planejamento">Planejamento</option>
+                            <option value="em_andamento">Em Andamento</option>
+                            <option value="pausada">Pausada</option>
+                            <option value="concluida">Concluída</option>
+                        </select>
+                        <button id="refreshTable" class="btn btn-primary" style="padding: 8px 16px;">
+                            <i class="fas fa-sync-alt"></i> Atualizar
+                        </button>
+                        <button id="exportTableExcel" class="btn btn-primary" style="padding: 8px 16px; background: #10b981;">
+                            <i class="fas fa-file-excel"></i> Exportar Excel
+                        </button>
+                    </div>
+                </div>
+                
+                <!-- Tabela -->
+                <div style="overflow: auto; max-height: 60vh;">
+                    <table id="worksTable" style="width: 100%; border-collapse: collapse; font-size: 13px;">
+                        <thead style="background: #6d28d9; color: white; position: sticky; top: 0; z-index: 10;">
+                            <tr>
+                                <th style="padding: 12px 8px; text-align: left; border: 1px solid #5a21b5; cursor: pointer;" onclick="sortTable(0)">
+                                    ID <i class="fas fa-sort"></i>
+                                </th>
+                                <th style="padding: 12px 8px; text-align: left; border: 1px solid #5a21b5; cursor: pointer;" onclick="sortTable(1)">
+                                    Nome <i class="fas fa-sort"></i>
+                                </th>
+                                <th style="padding: 12px 8px; text-align: left; border: 1px solid #5a21b5; cursor: pointer;" onclick="sortTable(2)">
+                                    OS <i class="fas fa-sort"></i>
+                                </th>
+                                <th style="padding: 12px 8px; text-align: left; border: 1px solid #5a21b5; cursor: pointer;" onclick="sortTable(3)">
+                                    Produto <i class="fas fa-sort"></i>
+                                </th>
+                                <th style="padding: 12px 8px; text-align: left; border: 1px solid #5a21b5; cursor: pointer;" onclick="sortTable(4)">
+                                    Medida <i class="fas fa-sort"></i>
+                                </th>
+                                <th style="padding: 12px 8px; text-align: left; border: 1px solid #5a21b5; cursor: pointer;" onclick="sortTable(5)">
+                                    Status <i class="fas fa-sort"></i>
+                                </th>
+                                <th style="padding: 12px 8px; text-align: left; border: 1px solid #5a21b5; cursor: pointer;" onclick="sortTable(6)">
+                                    Data <i class="fas fa-sort"></i>
+                                </th>
+                                <th style="padding: 12px 8px; text-align: left; border: 1px solid #5a21b5; cursor: pointer;" onclick="sortTable(7)">
+                                    Hora <i class="fas fa-sort"></i>
+                                </th>
+                                <th style="padding: 12px 8px; text-align: left; border: 1px solid #5a21b5; cursor: pointer;" onclick="sortTable(8)">
+                                    Ícone <i class="fas fa-sort"></i>
+                                </th>
+                                <th style="padding: 12px 8px; text-align: left; border: 1px solid #5a21b5;">
+                                    Ações
+                                </th>
+                            </tr>
+                        </thead>
+                        <tbody id="worksTableBody">
+                            <!-- Dados serão inseridos aqui via JavaScript -->
+                        </tbody>
+                    </table>
+                </div>
+                
+                <!-- Rodapé com estatísticas -->
+                <div style="padding: 15px; background: #f8f9fa; border-top: 1px solid #e5e7eb; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
+                    <div style="font-size: 14px; color: #6b7280;">
+                        <span id="tableStats">Total: 0 obras</span>
+                    </div>
+                    <div style="font-size: 12px; color: #9ca3af;">
+                        Última atualização: <span id="lastTableUpdate">-</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Input para importação de arquivos -->
+    <input type="file" id="fileInput" accept=".kmz,.kml" style="display: none;">
+    
+    <!-- Scripts -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://unpkg.com/leaflet-draw@1.0.4/dist/leaflet.draw.js"></script>
+    <script src="https://unpkg.com/jszip@3.10.1/dist/jszip.min.js"></script>
+    <script src="https://unpkg.com/xml2js@0.6.2/lib/xml2js.min.js"></script>
+    <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+    <script src="https://unpkg.com/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+    <script src="config.js"></script>
+    <script src="script.js"></script>
+    
+    <!-- PWA Service Worker -->
+    <script>
+        // Registrar Service Worker
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', function() {
+                navigator.serviceWorker.register('./sw.js')
+                    .then(function(registration) {
+                        console.log('Service Worker registrado com sucesso:', registration.scope);
+                        console.log('PWA pronto para instalação!');
+                    })
+                    .catch(function(error) {
+                        console.log('Falha ao registrar Service Worker:', error);
+                        console.error('Erro detalhado:', error);
+                    });
+            });
+        } else {
+            console.log('Service Worker não suportado neste navegador');
+        }
+        
+        // Detectar se é PWA
+        function isPWA() {
+            return window.matchMedia('(display-mode: standalone)').matches || 
+                   window.navigator.standalone === true;
+        }
+        
+        // Notificar sobre instalação PWA
+        let deferredPrompt;
+        let installPromptShown = false;
+        
+        window.addEventListener('beforeinstallprompt', (e) => {
+            console.log('PWA: beforeinstallprompt disparado');
+            e.preventDefault();
+            deferredPrompt = e;
+            
+            // Mostrar botão de instalação após 3 segundos
+            if (!installPromptShown) {
+                setTimeout(() => {
+                    showInstallButton();
+                    installPromptShown = true;
+                }, 3000);
+            }
+        });
+        
+        // Detectar se PWA foi instalado
+        window.addEventListener('appinstalled', (evt) => {
+            console.log('PWA: App instalado com sucesso!');
+            const installBtn = document.getElementById('installPWA');
+            if (installBtn) {
+                installBtn.innerHTML = '✅ Instalado!';
+                installBtn.style.background = '#10b981';
+                setTimeout(() => installBtn.remove(), 3000);
+            }
+        });
+        
+        function showInstallButton() {
+            if (isPWA()) {
+                console.log('App já está instalado como PWA');
+                return;
+            }
+            
+            // Mostrar botão no menu hambúrguer
+            const installBtn = document.getElementById('installPWA');
+            if (installBtn) {
+                installBtn.style.display = 'block';
+                console.log('Botão de instalação PWA mostrado no menu');
+                
+                installBtn.addEventListener('click', async () => {
+                    if (deferredPrompt) {
+                        try {
+                            deferredPrompt.prompt();
+                            const { outcome } = await deferredPrompt.userChoice;
+                            console.log(`PWA instalado: ${outcome}`);
+                            if (outcome === 'accepted') {
+                                installBtn.innerHTML = '<i class="fas fa-check"></i><span>Instalado!</span>';
+                                installBtn.style.background = '#10b981';
+                                setTimeout(() => {
+                                    installBtn.style.display = 'none';
+                                }, 3000);
+                            }
+                            deferredPrompt = null;
+                        } catch (error) {
+                            console.error('Erro ao instalar PWA:', error);
+                            installBtn.innerHTML = '<i class="fas fa-exclamation-triangle"></i><span>Erro na instalação</span>';
+                            installBtn.style.background = '#ef4444';
+                        }
+                    } else {
+                        console.log('Prompt de instalação não disponível');
+                        installBtn.innerHTML = '<i class="fas fa-exclamation-triangle"></i><span>Instalação não disponível</span>';
+                        installBtn.style.background = '#6b7280';
+                    }
+                });
+            }
+        }
+        
+        // Forçar exibição do botão em mobile após 5 segundos se não aparecer automaticamente
+        if (window.innerWidth <= 768) {
+            setTimeout(() => {
+                if (!document.getElementById('installPWA') && !isPWA()) {
+                    console.log('Forçando exibição do botão de instalação em mobile...');
+                    showInstallButton();
+                }
+            }, 5000);
+        }
+    </script>
+</body>
+</html>
