@@ -69,26 +69,24 @@ function initializeMap() {
         maxZoom: 19
     });
 
-    // SEMPRE iniciar em modo satélite (PC e mobile)
-    mapLayers.satellite.addTo(map);
+    // Iniciar em modo ruas (padrão do Google)
+    mapLayers.streets.addTo(map);
     
-    // Adicionar camada de nomes das ruas por cima do satélite
-    const streetNames = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        attribution: '© OpenStreetMap contributors',
-        maxZoom: 19,
-        opacity: 0.3
-    });
-    streetNames.addTo(map);
+    // Adicionar camada de satélite como opção
+    // mapLayers.satellite.addTo(map);
     
     // Forçar atualização do mapa após carregar
     setTimeout(() => {
         map.invalidateSize();
-        console.log('Mapa inicializado em modo satélite com nomes das ruas');
+        console.log('Mapa inicializado em modo ruas (padrão do Google)');
     }, 1000);
 
     // Inicializar camada para desenhos
     drawnItems = new L.FeatureGroup();
     map.addLayer(drawnItems);
+    
+    // Carregar marcações antigas do localStorage
+    loadOldMarkings();
 
     // Configurar controles de desenho nativos do Leaflet
     const drawControl = new L.Control.Draw({
@@ -1617,8 +1615,8 @@ async function handleFileImport(event) {
             throw new Error('Nenhuma obra encontrada no arquivo');
         }
         
-        // Limpar obras existentes
-        drawnItems.clearLayers();
+        // NÃO limpar obras existentes - adicionar às existentes
+        // drawnItems.clearLayers(); // Removido para preservar marcações antigas
         
         // Adicionar obras importadas e salvar no Supabase
         let importedCount = 0;
@@ -2788,6 +2786,94 @@ function generateWorkPopupHTML(work) {
             </div>
         </div>
     `;
+}
+
+// Função para carregar marcações antigas do localStorage
+function loadOldMarkings() {
+    try {
+        console.log('Carregando marcações antigas do localStorage...');
+        
+        // Carregar marcações do localStorage
+        const savedMarkings = localStorage.getItem('controle_obra_markings');
+        if (!savedMarkings) {
+            console.log('Nenhuma marcação antiga encontrada no localStorage');
+            return;
+        }
+        
+        const markings = JSON.parse(savedMarkings);
+        console.log(`Encontradas ${markings.length} marcações antigas`);
+        
+        let loadedCount = 0;
+        
+        markings.forEach(marking => {
+            if (marking.action !== 'delete' && marking.properties) {
+                try {
+                    // Criar obra a partir dos dados antigos
+                    const workData = {
+                        name: marking.properties.name || 'Obra sem nome',
+                        description: marking.properties.description || '',
+                        workNumber: marking.properties.workNumber || '',
+                        workProduct: marking.properties.workProduct || '',
+                        workMeasure: marking.properties.workMeasure || '',
+                        workObservation: marking.properties.workObservation || '',
+                        workStatus: marking.properties.workStatus || 'planejamento',
+                        workDate: marking.properties.workDate || new Date().toISOString().split('T')[0],
+                        workType: marking.type || 'marker'
+                    };
+                    
+                    // Criar geometria baseada no tipo
+                    let work = null;
+                    
+                    if (marking.type === 'marker' && marking.coordinates && marking.coordinates.length >= 2) {
+                        work = L.marker([marking.coordinates[1], marking.coordinates[0]]);
+                    } else if (marking.type === 'polygon' && marking.coordinates && marking.coordinates.length > 0) {
+                        const latLngs = marking.coordinates.map(coord => [coord[1], coord[0]]);
+                        work = L.polygon(latLngs);
+                    } else if (marking.type === 'polyline' && marking.coordinates && marking.coordinates.length > 0) {
+                        const latLngs = marking.coordinates.map(coord => [coord[1], coord[0]]);
+                        work = L.polyline(latLngs);
+                    } else if (marking.type === 'circle' && marking.coordinates && marking.coordinates.length >= 2) {
+                        work = L.circle([marking.coordinates[1], marking.coordinates[0]], {
+                            radius: marking.properties.radius || 100
+                        });
+                    }
+                    
+                    if (work) {
+                        // Configurar propriedades da obra
+                        work.workId = marking.id;
+                        work.workName = workData.name;
+                        work.workNumber = workData.workNumber;
+                        work.workProduct = workData.workProduct;
+                        work.workMeasure = workData.workMeasure;
+                        work.workObservation = workData.workObservation;
+                        work.workDescription = workData.description;
+                        work.workStatus = workData.workStatus;
+                        work.workType = workData.workType;
+                        work.workDate = workData.workDate;
+                        work.isSelected = false;
+                        
+                        // Adicionar popup
+                        work.bindPopup(generateWorkPopupHTML(work));
+                        
+                        // Adicionar ao mapa
+                        drawnItems.addLayer(work);
+                        loadedCount++;
+                    }
+                } catch (error) {
+                    console.warn('Erro ao carregar marcação antiga:', marking.id, error);
+                }
+            }
+        });
+        
+        console.log(`✅ Carregadas ${loadedCount} marcações antigas no mapa`);
+        
+        if (loadedCount > 0) {
+            showToast(`${loadedCount} marcações antigas carregadas`, 'success');
+        }
+        
+    } catch (error) {
+        console.error('Erro ao carregar marcações antigas:', error);
+    }
 }
 
 // ==================== SISTEMA DE TABELA DE OBRAS ====================
