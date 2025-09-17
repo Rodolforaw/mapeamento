@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Teste do Mapa em Modo Ruas</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <style>
+        body { margin: 0; padding: 0; font-family: Arial, sans-serif; }
+        #map { height: 100vh; width: 100%; }
+        .test-info {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            background: white;
+            padding: 10px;
+            border-radius: 5px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+            z-index: 1000;
+        }
+        .test-button {
+            background: #6d28d9;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        .test-button:hover {
+            background: #5a21b5;
+        }
+    </style>
+</head>
+<body>
+    <div class="test-info">
+        <h3>Teste do Mapa em Modo Ruas</h3>
+        <p>Este mapa deve iniciar em modo ruas (padrão do Google) em vez de satélite.</p>
+        <button class="test-button" onclick="testSatelliteMode()">Alternar para Satélite</button>
+        <button class="test-button" onclick="testStreetMode()">Voltar para Ruas</button>
+        <button class="test-button" onclick="addTestMarking()">Adicionar Marcação de Teste</button>
+        <button class="test-button" onclick="loadTestMarkings()">Carregar Marcações de Teste</button>
+    </div>
+    <div id="map"></div>
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script>
+        // Configuração do mapa
+        const MARICA_CENTER = [-22.9194, -42.8186];
+        const DEFAULT_ZOOM = 13;
+        
+        let map;
+        let drawnItems;
+        let streetLayer;
+        let satelliteLayer;
+        
+        // Inicializar mapa
+        function initializeMap() {
+            map = L.map('map').setView(MARICA_CENTER, DEFAULT_ZOOM);
+            
+            // Camada de ruas (OpenStreetMap)
+            streetLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: '© OpenStreetMap contributors',
+                maxZoom: 19
+            });
+            
+            // Camada de satélite
+            satelliteLayer = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+                attribution: '© Esri',
+                maxZoom: 19
+            });
+            
+            // Iniciar em modo ruas (padrão do Google)
+            streetLayer.addTo(map);
+            
+            // Inicializar camada para desenhos
+            drawnItems = new L.FeatureGroup();
+            map.addLayer(drawnItems);
+            
+            console.log('Mapa inicializado em modo ruas (padrão do Google)');
+        }
+        
+        // Alternar para modo satélite
+        function testSatelliteMode() {
+            map.removeLayer(streetLayer);
+            satelliteLayer.addTo(map);
+            console.log('Alternado para modo satélite');
+        }
+        
+        // Voltar para modo ruas
+        function testStreetMode() {
+            map.removeLayer(satelliteLayer);
+            streetLayer.addTo(map);
+            console.log('Voltado para modo ruas');
+        }
+        
+        // Adicionar marcação de teste
+        function addTestMarking() {
+            const marker = L.marker(MARICA_CENTER);
+            marker.bindPopup(`
+                <div style="min-width: 200px;">
+                    <h4>📍 Marcação de Teste</h4>
+                    <p><strong>OS:</strong> TESTE-001</p>
+                    <p><strong>Produto:</strong> Meio-fio</p>
+                    <p><strong>Medida:</strong> 45 metros</p>
+                    <p><strong>Status:</strong> Planejamento</p>
+                    <p><strong>Data:</strong> ${new Date().toLocaleDateString('pt-BR')}</p>
+                </div>
+            `);
+            drawnItems.addLayer(marker);
+            console.log('Marcação de teste adicionada');
+        }
+        
+        // Carregar marcações de teste do localStorage
+        function loadTestMarkings() {
+            // Simular marcações antigas no localStorage
+            const testMarkings = [
+                {
+                    id: 'test-1',
+                    type: 'marker',
+                    coordinates: [-22.9194, -42.8186],
+                    properties: {
+                        name: 'Obra Teste 1',
+                        workNumber: 'OS-001',
+                        workProduct: 'Tubo de concreto',
+                        workMeasure: '300mm',
+                        workStatus: 'execução',
+                        workDate: '2025-09-20',
+                        workObservation: 'Teste de marcação antiga'
+                    },
+                    timestamp: Date.now(),
+                    action: 'create'
+                },
+                {
+                    id: 'test-2',
+                    type: 'polygon',
+                    coordinates: [
+                        [-22.9200, -42.8200],
+                        [-22.9200, -42.8190],
+                        [-22.9190, -42.8190],
+                        [-22.9190, -42.8200],
+                        [-22.9200, -42.8200]
+                    ],
+                    properties: {
+                        name: 'Área Teste 2',
+                        workNumber: 'OS-002',
+                        workProduct: 'Pavimentação',
+                        workMeasure: '100m²',
+                        workStatus: 'planejamento',
+                        workDate: '2025-09-21',
+                        workObservation: 'Área de teste'
+                    },
+                    timestamp: Date.now(),
+                    action: 'create'
+                }
+            ];
+            
+            // Salvar no localStorage
+            localStorage.setItem('controle_obra_markings', JSON.stringify(testMarkings));
+            
+            // Carregar marcações
+            loadOldMarkings();
+        }
+        
+        // Função para carregar marcações antigas (copiada do script principal)
+        function loadOldMarkings() {
+            try {
+                console.log('Carregando marcações antigas do localStorage...');
+                
+                const savedMarkings = localStorage.getItem('controle_obra_markings');
+                if (!savedMarkings) {
+                    console.log('Nenhuma marcação antiga encontrada no localStorage');
+                    return;
+                }
+                
+                const markings = JSON.parse(savedMarkings);
+                console.log(`Encontradas ${markings.length} marcações antigas`);
+                
+                let loadedCount = 0;
+                
+                markings.forEach(marking => {
+                    if (marking.action !== 'delete' && marking.properties) {
+                        try {
+                            let work = null;
+                            
+                            if (marking.type === 'marker' && marking.coordinates && marking.coordinates.length >= 2) {
+                                work = L.marker([marking.coordinates[1], marking.coordinates[0]]);
+                            } else if (marking.type === 'polygon' && marking.coordinates && marking.coordinates.length > 0) {
+                                const latLngs = marking.coordinates.map(coord => [coord[1], coord[0]]);
+                                work = L.polygon(latLngs);
+                            } else if (marking.type === 'polyline' && marking.coordinates && marking.coordinates.length > 0) {
+                                const latLngs = marking.coordinates.map(coord => [coord[1], coord[0]]);
+                                work = L.polyline(latLngs);
+                            }
+                            
+                            if (work) {
+                                work.workId = marking.id;
+                                work.workName = marking.properties.name || 'Obra sem nome';
+                                work.workNumber = marking.properties.workNumber || '';
+                                work.workProduct = marking.properties.workProduct || '';
+                                work.workMeasure = marking.properties.workMeasure || '';
+                                work.workObservation = marking.properties.workObservation || '';
+                                work.workStatus = marking.properties.workStatus || 'planejamento';
+                                work.workDate = marking.properties.workDate || new Date().toISOString().split('T')[0];
+                                
+                                // Adicionar popup
+                                work.bindPopup(`
+                                    <div style="min-width: 200px;">
+                                        <h4>📍 ${work.workName}</h4>
+                                        <p><strong>OS:</strong> ${work.workNumber || 'Não informado'}</p>
+                                        <p><strong>Produto:</strong> ${work.workProduct || 'Não informado'}</p>
+                                        <p><strong>Medida:</strong> ${work.workMeasure || 'Não informado'}</p>
+                                        <p><strong>Status:</strong> ${work.workStatus}</p>
+                                        <p><strong>Data:</strong> ${work.workDate}</p>
+                                        ${work.workObservation ? `<p><strong>Observação:</strong> ${work.workObservation}</p>` : ''}
+                                    </div>
+                                `);
+                                
+                                drawnItems.addLayer(work);
+                                loadedCount++;
+                            }
+                        } catch (error) {
+                            console.warn('Erro ao carregar marcação antiga:', marking.id, error);
+                        }
+                    }
+                });
+                
+                console.log(`✅ Carregadas ${loadedCount} marcações antigas no mapa`);
+                
+            } catch (error) {
+                console.error('Erro ao carregar marcações antigas:', error);
+            }
+        }
+        
+        // Inicializar quando a página carregar
+        document.addEventListener('DOMContentLoaded', function() {
+            initializeMap();
+        });
+    </script>
+</body>
+</html>
