@@ -1974,43 +1974,43 @@ function extractDataFromDescription(description) {
                 /#([0-9]+)/i
             ],
             workProduct: [
-                /Produto[:\s]*([^<]+)/i,
-                /Tipo[:\s]*([^<]+)/i,
-                /Serviço[:\s]*([^<]+)/i,
-                /Material[:\s]*([^<]+)/i,
-                /Item[:\s]*([^<]+)/i,
-                /Descrição[:\s]*([^<]+)/i,
-                /Especificação[:\s]*([^<]+)/i
+                /Produto[:\s]*([^<\n\r]+?)(?:\s*<br\s*\/?>|\s*Medida|\s*Status|\s*Data|\s*Observação|$)/i,
+                /Tipo[:\s]*([^<\n\r]+?)(?:\s*<br\s*\/?>|\s*Medida|\s*Status|\s*Data|\s*Observação|$)/i,
+                /Serviço[:\s]*([^<\n\r]+?)(?:\s*<br\s*\/?>|\s*Medida|\s*Status|\s*Data|\s*Observação|$)/i,
+                /Material[:\s]*([^<\n\r]+?)(?:\s*<br\s*\/?>|\s*Medida|\s*Status|\s*Data|\s*Observação|$)/i,
+                /Item[:\s]*([^<\n\r]+?)(?:\s*<br\s*\/?>|\s*Medida|\s*Status|\s*Data|\s*Observação|$)/i,
+                /Descrição[:\s]*([^<\n\r]+?)(?:\s*<br\s*\/?>|\s*Medida|\s*Status|\s*Data|\s*Observação|$)/i,
+                /Especificação[:\s]*([^<\n\r]+?)(?:\s*<br\s*\/?>|\s*Medida|\s*Status|\s*Data|\s*Observação|$)/i
             ],
             workMeasure: [
-                /Medida[:\s]*([^<]+)/i,
-                /Quantidade[:\s]*([^<]+)/i,
-                /Dimensão[:\s]*([^<]+)/i,
-                /Tamanho[:\s]*([^<]+)/i,
-                /Diâmetro[:\s]*([^<]+)/i,
-                /Comprimento[:\s]*([^<]+)/i,
-                /Largura[:\s]*([^<]+)/i,
-                /Altura[:\s]*([^<]+)/i,
-                /Volume[:\s]*([^<]+)/i,
-                /Área[:\s]*([^<]+)/i,
-                /Metragem[:\s]*([^<]+)/i,
-                /Unidade[:\s]*([^<]+)/i,
-                /Ø[:\s]*([^<]+)/i,
-                /φ[:\s]*([^<]+)/i
+                /Medida[:\s]*([^<\n\r]+?)(?:\s*<br\s*\/?>|\s*Status|\s*Data|\s*Observação|$)/i,
+                /Quantidade[:\s]*([^<\n\r]+?)(?:\s*<br\s*\/?>|\s*Status|\s*Data|\s*Observação|$)/i,
+                /Dimensão[:\s]*([^<\n\r]+?)(?:\s*<br\s*\/?>|\s*Status|\s*Data|\s*Observação|$)/i,
+                /Tamanho[:\s]*([^<\n\r]+?)(?:\s*<br\s*\/?>|\s*Status|\s*Data|\s*Observação|$)/i,
+                /Diâmetro[:\s]*([^<\n\r]+?)(?:\s*<br\s*\/?>|\s*Status|\s*Data|\s*Observação|$)/i,
+                /Comprimento[:\s]*([^<\n\r]+?)(?:\s*<br\s*\/?>|\s*Status|\s*Data|\s*Observação|$)/i,
+                /Largura[:\s]*([^<\n\r]+?)(?:\s*<br\s*\/?>|\s*Status|\s*Data|\s*Observação|$)/i,
+                /Altura[:\s]*([^<\n\r]+?)(?:\s*<br\s*\/?>|\s*Status|\s*Data|\s*Observação|$)/i,
+                /Volume[:\s]*([^<\n\r]+?)(?:\s*<br\s*\/?>|\s*Status|\s*Data|\s*Observação|$)/i,
+                /Área[:\s]*([^<\n\r]+?)(?:\s*<br\s*\/?>|\s*Status|\s*Data|\s*Observação|$)/i,
+                /Metragem[:\s]*([^<\n\r]+?)(?:\s*<br\s*\/?>|\s*Status|\s*Data|\s*Observação|$)/i,
+                /Unidade[:\s]*([^<\n\r]+?)(?:\s*<br\s*\/?>|\s*Status|\s*Data|\s*Observação|$)/i,
+                /Ø[:\s]*([^<\n\r]+?)(?:\s*<br\s*\/?>|\s*Status|\s*Data|\s*Observação|$)/i,
+                /φ[:\s]*([^<\n\r]+?)(?:\s*<br\s*\/?>|\s*Status|\s*Data|\s*Observação|$)/i
             ],
             workObservation: [
-                /Observação[:\s]*([^<]+)/i,
-                /Obs[:\s]*([^<]+)/i,
-                /Nota[:\s]*([^<]+)/i,
-                /Comentário[:\s]*([^<]+)/i,
-                /Detalhe[:\s]*([^<]+)/i,
-                /Observações[:\s]*([^<]+)/i
+                /Observação[:\s]*([^<\n\r]+?)(?:\s*<br\s*\/?>|$)/i,
+                /Obs[:\s]*([^<\n\r]+?)(?:\s*<br\s*\/?>|$)/i,
+                /Nota[:\s]*([^<\n\r]+?)(?:\s*<br\s*\/?>|$)/i,
+                /Comentário[:\s]*([^<\n\r]+?)(?:\s*<br\s*\/?>|$)/i,
+                /Detalhe[:\s]*([^<\n\r]+?)(?:\s*<br\s*\/?>|$)/i,
+                /Observações[:\s]*([^<\n\r]+?)(?:\s*<br\s*\/?>|$)/i
             ],
             workStatus: [
-                /Status[:\s]*([^<]+)/i,
-                /Situação[:\s]*([^<]+)/i,
-                /Estado[:\s]*([^<]+)/i,
-                /Fase[:\s]*([^<]+)/i
+                /Status[:\s]*([^<\n\r]+?)(?:\s*<br\s*\/?>|\s*Data|\s*Observação|$)/i,
+                /Situação[:\s]*([^<\n\r]+?)(?:\s*<br\s*\/?>|\s*Data|\s*Observação|$)/i,
+                /Estado[:\s]*([^<\n\r]+?)(?:\s*<br\s*\/?>|\s*Data|\s*Observação|$)/i,
+                /Fase[:\s]*([^<\n\r]+?)(?:\s*<br\s*\/?>|\s*Data|\s*Observação|$)/i
             ],
             workDate: [
                 /Data[:\s]*([0-9]{2}[\/\-][0-9]{2}[\/\-][0-9]{4})/i,
@@ -2025,11 +2025,25 @@ function extractDataFromDescription(description) {
             for (const pattern of patterns[key]) {
                 const match = text.match(pattern);
                 if (match && match[1]) {
-                    data[key] = match[1].trim();
+                    // Limpar o texto extraído
+                    let extractedText = match[1].trim();
+                    
+                    // Remover tags HTML se houver
+                    extractedText = extractedText.replace(/<[^>]*>/g, '');
+                    
+                    // Limitar o tamanho do texto para evitar overflow
+                    if (extractedText.length > 100) {
+                        extractedText = extractedText.substring(0, 100) + '...';
+                    }
+                    
+                    console.log(`Extraído ${key}:`, extractedText);
+                    data[key] = extractedText;
                     break;
                 }
             }
         });
+        
+        console.log('Dados extraídos finais:', data);
         
         // Limpar dados extraídos
         Object.keys(data).forEach(key => {
