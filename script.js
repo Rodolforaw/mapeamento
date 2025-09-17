@@ -1512,9 +1512,14 @@ async function handleFileImport(event) {
             throw new Error('Por favor, selecione um arquivo KMZ ou KML válido');
         }
         
-        // Validar tamanho do arquivo (máximo 10MB)
+        // Validar tamanho do arquivo (máximo 50MB)
+        if (file.size > 100 * 1024 * 1024) {
+            throw new Error('Arquivo muito grande. Máximo 100MB permitido');
+        }
+            
+        // Mostrar progresso para arquivos grandes
         if (file.size > 10 * 1024 * 1024) {
-            throw new Error('Arquivo muito grande. Máximo 10MB permitido');
+            showToast('Arquivo grande detectado. Processando...', 'info');
         }
         
         let kmlContent;
@@ -1543,12 +1548,20 @@ async function handleFileImport(event) {
             }
             
             try {
-                // Processar com JSZip
+                // Processar com JSZip com timeout
                 const zip = new JSZip();
-                const zipContent = await zip.loadAsync(arrayBuffer);
+                const zipContent = await Promise.race([
+                    zip.loadAsync(arrayBuffer),
+                    new Promise((_, reject) => 
+                        setTimeout(() => reject(new Error('Timeout ao processar arquivo KMZ')), 30000)
+                    )
+                ]);
                 
                 // Procurar arquivo KML (pode ter diferentes nomes)
-                const kmlFiles = Object.keys(zipContent.files).filter(name => name.endsWith('.kml'));
+                const kmlFiles = Object.keys(zipContent.files).filter(name => 
+                    name.toLowerCase().endsWith('.kml') && !name.includes('__MACOSX')
+                );
+                
                 if (kmlFiles.length === 0) {
                     throw new Error('Arquivo KML não encontrado no KMZ');
                 }
@@ -1559,12 +1572,27 @@ async function handleFileImport(event) {
                     throw new Error('Não foi possível acessar o arquivo KML');
                 }
                 
+                // Verificar tamanho do arquivo KML
+                if (kmlFile._data && kmlFile._data.uncompressedSize > 100 * 1024 * 1024) {
+                    throw new Error('Arquivo KML muito grande (>100MB)');
+                }
+                
                 kmlContent = await kmlFile.async('text');
+                
+                if (!kmlContent || kmlContent.trim().length === 0) {
+                    throw new Error('Arquivo KML está vazio');
+                }
+                
             } catch (zipError) {
+                console.error('Erro ao processar KMZ:', zipError);
                 if (zipError.message.includes('end of central directory')) {
                     throw new Error('Arquivo KMZ corrompido ou não é um ZIP válido. Tente exportar novamente do Google Earth.');
+                } else if (zipError.message.includes('Timeout')) {
+                    throw new Error('Arquivo muito grande para processar. Tente um arquivo menor.');
+                } else if (zipError.message.includes('Invalid file')) {
+                    throw new Error('Arquivo KMZ inválido ou corrompido.');
                 }
-                throw zipError;
+                throw new Error('Erro ao processar arquivo KMZ: ' + zipError.message);
             }
         }
         
@@ -1821,16 +1849,22 @@ async function parseKML(kmlContent) {
                 // Extrair dados estruturados da descrição (HTML)
                 const extractedData = extractDataFromDescription(description);
                 
+                // Tentar extrair dados do nome também
+                const nameInfo = extractInfoFromName(name);
+                
                 let workData = {
                     name: name,
                     description: description,
-                    workNumber: extractedData.workNumber || '',
-                    workProduct: extractedData.workProduct || '',
-                    workMeasure: extractedData.workMeasure || '',
+                    workNumber: extractedData.workNumber || nameInfo.workNumber || '',
+                    workProduct: extractedData.workProduct || nameInfo.workProduct || '',
+                    workMeasure: extractedData.workMeasure || nameInfo.workMeasure || '',
                     workObservation: extractedData.workObservation || '',
                     workStatus: extractedData.workStatus || 'planejamento',
                     workDate: extractedData.workDate || new Date().toISOString().split('T')[0]
                 };
+                
+                console.log(`Processando obra: ${name}`);
+                console.log('Dados extraídos:', workData);
                 
                 // Verificar tipo de geometria
                 const point = placemark.getElementsByTagName('Point')[0];
@@ -2081,6 +2115,8 @@ function extractInfoFromName(name) {
     
     if (!name) return info;
     
+    console.log('Extraindo informações do nome:', name);
+    
     try {
         // Padrões para extrair do nome
         const namePatterns = {
@@ -2147,6 +2183,8 @@ function extractInfoFromName(name) {
                 info[key] = info[key].replace(/[()]/g, '').trim();
             }
         });
+        
+        console.log('Informações extraídas do nome:', info);
         
     } catch (error) {
         console.warn('Erro ao extrair informações do nome:', error);
@@ -2583,6 +2621,8 @@ function validateDate(dateString) {
 function generateWorkPopupHTML(work) {
     const validated = validateWorkData(work);
     
+    console.log('Gerando popup para obra:', work.workName, 'Dados validados:', validated);
+    
     return `
         <div class="work-popup" style="min-width: 280px; max-width: 350px; font-family: 'Segoe UI', Arial, sans-serif;">
             <div style="background: linear-gradient(135deg, #6d28d9, #5a21b5); color: white; padding: 12px; margin: -8px -8px 12px -8px; border-radius: 6px 6px 0 0; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
@@ -2623,6 +2663,15 @@ function generateWorkPopupHTML(work) {
                         <div style="font-size: 11px; color: #6b7280; text-transform: uppercase; font-weight: 600; margin-bottom: 4px;">Observação</div>
                         <div style="font-size: 13px; color: #374151; background: #f8f9fa; padding: 6px 8px; border-radius: 4px; line-height: 1.4;">${validated.workObservation}</div>
                     </div>
+                ` : ''}
+                
+                ${validated.workDescription ? `
+                <div style="margin-top: 12px; padding-top: 12px; border-top: 1px solid #e5e7eb;">
+                    <div style="font-size: 11px; color: #6b7280; text-transform: uppercase; font-weight: 600; margin-bottom: 4px;">Descrição Original</div>
+                    <div style="font-size: 12px; color: #6b7280; background: #f3f4f6; padding: 6px 8px; border-radius: 4px; max-height: 60px; overflow-y: auto;">
+                        ${validated.workDescription}
+                    </div>
+                </div>
                 ` : ''}
             </div>
             
