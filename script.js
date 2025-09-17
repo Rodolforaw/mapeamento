@@ -1630,6 +1630,33 @@ async function handleFileImport(event) {
                 drawnItems.addLayer(work);
                 importedCount++;
                 
+                // Salvar também no localStorage para compatibilidade com sistema antigo
+                const markingData = {
+                    id: work.workId,
+                    type: work.workType,
+                    coordinates: work.getLatLng ? [work.getLatLng().lat, work.getLatLng().lng] : work.getLatLngs ? work.getLatLngs() : [],
+                    properties: {
+                        name: work.workName,
+                        description: work.workDescription,
+                        workNumber: work.workNumber,
+                        workProduct: work.workProduct,
+                        workMeasure: work.workMeasure,
+                        workObservation: work.workObservation,
+                        workStatus: work.workStatus,
+                        workDate: work.workDate,
+                        source: 'import',
+                        importedAt: Date.now()
+                    },
+                    timestamp: Date.now(),
+                    lastModified: Date.now(),
+                    action: 'create'
+                };
+                
+                // Adicionar ao localStorage
+                const existingMarkings = JSON.parse(localStorage.getItem('controle_obra_markings') || '[]');
+                existingMarkings.push(markingData);
+                localStorage.setItem('controle_obra_markings', JSON.stringify(existingMarkings));
+                
                 // Preparar dados para Supabase
                 const supabaseData = prepareKMLDataForSupabase(workData);
                 if (supabaseData) {
@@ -2014,7 +2041,23 @@ function extractDataFromDescription(description) {
                 /Material[:\s]*([^<\n\r]+?)(?:\s*<br\s*\/?>|\s*Medida|\s*Status|\s*Data|\s*Observação|$)/i,
                 /Item[:\s]*([^<\n\r]+?)(?:\s*<br\s*\/?>|\s*Medida|\s*Status|\s*Data|\s*Observação|$)/i,
                 /Descrição[:\s]*([^<\n\r]+?)(?:\s*<br\s*\/?>|\s*Medida|\s*Status|\s*Data|\s*Observação|$)/i,
-                /Especificação[:\s]*([^<\n\r]+?)(?:\s*<br\s*\/?>|\s*Medida|\s*Status|\s*Data|\s*Observação|$)/i
+                /Especificação[:\s]*([^<\n\r]+?)(?:\s*<br\s*\/?>|\s*Medida|\s*Status|\s*Data|\s*Observação|$)/i,
+                // Padrões para marcações antigas
+                /<b>Produto:<\/b>\s*([^<]+)/i,
+                /<b>Tipo:<\/b>\s*([^<]+)/i,
+                /<b>Serviço:<\/b>\s*([^<]+)/i,
+                /<b>Material:<\/b>\s*([^<]+)/i,
+                /<b>Item:<\/b>\s*([^<]+)/i,
+                /<b>Descrição:<\/b>\s*([^<]+)/i,
+                /<b>Especificação:<\/b>\s*([^<]+)/i,
+                // Padrões simples
+                /Produto:\s*([^<\n\r]+)/i,
+                /Tipo:\s*([^<\n\r]+)/i,
+                /Serviço:\s*([^<\n\r]+)/i,
+                /Material:\s*([^<\n\r]+)/i,
+                /Item:\s*([^<\n\r]+)/i,
+                /Descrição:\s*([^<\n\r]+)/i,
+                /Especificação:\s*([^<\n\r]+)/i
             ],
             workMeasure: [
                 /Medida[:\s]*([^<\n\r]+?)(?:\s*<br\s*\/?>|\s*Status|\s*Data|\s*Observação|$)/i,
@@ -2030,7 +2073,33 @@ function extractDataFromDescription(description) {
                 /Metragem[:\s]*([^<\n\r]+?)(?:\s*<br\s*\/?>|\s*Status|\s*Data|\s*Observação|$)/i,
                 /Unidade[:\s]*([^<\n\r]+?)(?:\s*<br\s*\/?>|\s*Status|\s*Data|\s*Observação|$)/i,
                 /Ø[:\s]*([^<\n\r]+?)(?:\s*<br\s*\/?>|\s*Status|\s*Data|\s*Observação|$)/i,
-                /φ[:\s]*([^<\n\r]+?)(?:\s*<br\s*\/?>|\s*Status|\s*Data|\s*Observação|$)/i
+                /φ[:\s]*([^<\n\r]+?)(?:\s*<br\s*\/?>|\s*Status|\s*Data|\s*Observação|$)/i,
+                // Padrões para marcações antigas
+                /<b>Medida:<\/b>\s*([^<]+)/i,
+                /<b>Quantidade:<\/b>\s*([^<]+)/i,
+                /<b>Dimensão:<\/b>\s*([^<]+)/i,
+                /<b>Tamanho:<\/b>\s*([^<]+)/i,
+                /<b>Diâmetro:<\/b>\s*([^<]+)/i,
+                /<b>Comprimento:<\/b>\s*([^<]+)/i,
+                /<b>Largura:<\/b>\s*([^<]+)/i,
+                /<b>Altura:<\/b>\s*([^<]+)/i,
+                /<b>Volume:<\/b>\s*([^<]+)/i,
+                /<b>Área:<\/b>\s*([^<]+)/i,
+                /<b>Metragem:<\/b>\s*([^<]+)/i,
+                /<b>Unidade:<\/b>\s*([^<]+)/i,
+                // Padrões simples
+                /Medida:\s*([^<\n\r]+)/i,
+                /Quantidade:\s*([^<\n\r]+)/i,
+                /Dimensão:\s*([^<\n\r]+)/i,
+                /Tamanho:\s*([^<\n\r]+)/i,
+                /Diâmetro:\s*([^<\n\r]+)/i,
+                /Comprimento:\s*([^<\n\r]+)/i,
+                /Largura:\s*([^<\n\r]+)/i,
+                /Altura:\s*([^<\n\r]+)/i,
+                /Volume:\s*([^<\n\r]+)/i,
+                /Área:\s*([^<\n\r]+)/i,
+                /Metragem:\s*([^<\n\r]+)/i,
+                /Unidade:\s*([^<\n\r]+)/i
             ],
             workObservation: [
                 /Observação[:\s]*([^<\n\r]+?)(?:\s*<br\s*\/?>|$)/i,
@@ -2038,19 +2107,53 @@ function extractDataFromDescription(description) {
                 /Nota[:\s]*([^<\n\r]+?)(?:\s*<br\s*\/?>|$)/i,
                 /Comentário[:\s]*([^<\n\r]+?)(?:\s*<br\s*\/?>|$)/i,
                 /Detalhe[:\s]*([^<\n\r]+?)(?:\s*<br\s*\/?>|$)/i,
-                /Observações[:\s]*([^<\n\r]+?)(?:\s*<br\s*\/?>|$)/i
+                /Observações[:\s]*([^<\n\r]+?)(?:\s*<br\s*\/?>|$)/i,
+                // Padrões para marcações antigas
+                /<b>Observação:<\/b>\s*([^<]+)/i,
+                /<b>Obs:<\/b>\s*([^<]+)/i,
+                /<b>Nota:<\/b>\s*([^<]+)/i,
+                /<b>Comentário:<\/b>\s*([^<]+)/i,
+                /<b>Detalhe:<\/b>\s*([^<]+)/i,
+                /<b>Observações:<\/b>\s*([^<]+)/i,
+                // Padrões simples
+                /Observação:\s*([^<\n\r]+)/i,
+                /Obs:\s*([^<\n\r]+)/i,
+                /Nota:\s*([^<\n\r]+)/i,
+                /Comentário:\s*([^<\n\r]+)/i,
+                /Detalhe:\s*([^<\n\r]+)/i,
+                /Observações:\s*([^<\n\r]+)/i
             ],
             workStatus: [
                 /Status[:\s]*([^<\n\r]+?)(?:\s*<br\s*\/?>|\s*Data|\s*Observação|$)/i,
                 /Situação[:\s]*([^<\n\r]+?)(?:\s*<br\s*\/?>|\s*Data|\s*Observação|$)/i,
                 /Estado[:\s]*([^<\n\r]+?)(?:\s*<br\s*\/?>|\s*Data|\s*Observação|$)/i,
-                /Fase[:\s]*([^<\n\r]+?)(?:\s*<br\s*\/?>|\s*Data|\s*Observação|$)/i
+                /Fase[:\s]*([^<\n\r]+?)(?:\s*<br\s*\/?>|\s*Data|\s*Observação|$)/i,
+                // Padrões para marcações antigas
+                /<b>Status:<\/b>\s*([^<]+)/i,
+                /<b>Situação:<\/b>\s*([^<]+)/i,
+                /<b>Estado:<\/b>\s*([^<]+)/i,
+                /<b>Fase:<\/b>\s*([^<]+)/i,
+                // Padrões simples
+                /Status:\s*([^<\n\r]+)/i,
+                /Situação:\s*([^<\n\r]+)/i,
+                /Estado:\s*([^<\n\r]+)/i,
+                /Fase:\s*([^<\n\r]+)/i
             ],
             workDate: [
                 /Data[:\s]*([0-9]{2}[\/\-][0-9]{2}[\/\-][0-9]{4})/i,
                 /Data[:\s]*([0-9]{4}[\/\-][0-9]{2}[\/\-][0-9]{2})/i,
                 /Data[:\s]*([0-9]{1,2}[\/\-][0-9]{1,2}[\/\-][0-9]{4})/i,
-                /Data[:\s]*([0-9]{4}[\/\-][0-9]{1,2}[\/\-][0-9]{1,2})/i
+                /Data[:\s]*([0-9]{4}[\/\-][0-9]{1,2}[\/\-][0-9]{1,2})/i,
+                // Padrões para marcações antigas
+                /<b>Data:<\/b>\s*([0-9]{2}[\/\-][0-9]{2}[\/\-][0-9]{4})/i,
+                /<b>Data:<\/b>\s*([0-9]{4}[\/\-][0-9]{2}[\/\-][0-9]{2})/i,
+                /<b>Data:<\/b>\s*([0-9]{1,2}[\/\-][0-9]{1,2}[\/\-][0-9]{4})/i,
+                /<b>Data:<\/b>\s*([0-9]{4}[\/\-][0-9]{1,2}[\/\-][0-9]{1,2})/i,
+                // Padrões simples
+                /Data:\s*([0-9]{2}[\/\-][0-9]{2}[\/\-][0-9]{4})/i,
+                /Data:\s*([0-9]{4}[\/\-][0-9]{2}[\/\-][0-9]{2})/i,
+                /Data:\s*([0-9]{1,2}[\/\-][0-9]{1,2}[\/\-][0-9]{4})/i,
+                /Data:\s*([0-9]{4}[\/\-][0-9]{1,2}[\/\-][0-9]{1,2})/i
             ]
         };
         
@@ -2625,7 +2728,7 @@ function generateWorkPopupHTML(work) {
     
     return `
         <div class="work-popup" style="min-width: 280px; max-width: 350px; font-family: 'Segoe UI', Arial, sans-serif;">
-            <div style="background: linear-gradient(135deg, #6d28d9, #5a21b5); color: white; padding: 12px; margin: -8px -8px 12px -8px; border-radius: 6px 6px 0 0; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+            <div style="background: linear-gradient(135deg, #1f2937, #374151); color: white; padding: 12px; margin: -8px -8px 12px -8px; border-radius: 6px 6px 0 0; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
                 <h4 style="margin: 0; font-size: 16px; font-weight: 600; display: flex; align-items: center; gap: 8px;">
                     <span style="background: rgba(255,255,255,0.2); padding: 4px 8px; border-radius: 12px; font-size: 12px;">${getWorkProductIcon(validated.workProduct)}</span>
                     ${validated.workName}
