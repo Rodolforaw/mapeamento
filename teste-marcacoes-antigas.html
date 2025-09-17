@@ -1,0 +1,398 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Teste de Marcações Antigas</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .container { max-width: 1000px; margin: 0 auto; }
+        .test-section { margin: 20px 0; padding: 15px; border: 1px solid #ddd; border-radius: 5px; }
+        .input-area { margin: 10px 0; }
+        textarea { width: 100%; height: 100px; padding: 10px; border: 1px solid #ccc; border-radius: 3px; }
+        button { background: #6d28d9; color: white; border: none; padding: 10px 20px; border-radius: 5px; cursor: pointer; margin: 5px; }
+        button:hover { background: #5a21b5; }
+        .result { background: #f5f5f5; padding: 10px; border-radius: 3px; margin: 10px 0; }
+        .field { margin: 5px 0; padding: 5px; background: white; border-left: 3px solid #6d28d9; }
+        .field-label { font-weight: bold; color: #6d28d9; }
+        .field-value { margin-left: 10px; }
+        .error { color: red; }
+        .success { color: green; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Teste de Extração de Dados de Marcações Antigas</h1>
+        
+        <div class="test-section">
+            <h3>1. Teste com Descrição HTML de Marcação Antiga</h3>
+            <div class="input-area">
+                <label>Descrição HTML Antiga:</label>
+                <textarea id="oldDescription" placeholder="Cole aqui a descrição HTML de marcação antiga...">
+                    <![CDATA[
+                        <b>OS:</b> 25050002<br/>
+                        <b>Produto:</b> Meio-fio<br/>
+                        <b>Medida:</b> 45 metros<br/>
+                        <b>Status:</b> planejamento<br/>
+                        <b>Data:</b> 16/09/2025<br/>
+                        <b>Observação:</b> TESTE DE MARCAÇÃO ANTIGA
+                    ]]>
+                </textarea>
+            </div>
+            <button onclick="testOldExtraction()">Testar Extração Antiga</button>
+            <div id="old-result" class="result"></div>
+        </div>
+        
+        <div class="test-section">
+            <h3>2. Teste com Descrição Simples</h3>
+            <div class="input-area">
+                <label>Descrição Simples:</label>
+                <textarea id="simpleDescription" placeholder="Descrição simples sem HTML...">
+                    OS: 001
+                    Produto: Tubo de concreto
+                    Medida: 300mm
+                    Status: execução
+                    Data: 20/09/2025
+                    Observação: Obra em andamento
+                </textarea>
+            </div>
+            <button onclick="testSimpleExtraction()">Testar Extração Simples</button>
+            <div id="simple-result" class="result"></div>
+        </div>
+        
+        <div class="test-section">
+            <h3>3. Teste com Nome da Obra</h3>
+            <div class="input-area">
+                <label>Nome da Obra:</label>
+                <textarea id="workName" placeholder="Nome da obra...">
+                    OS 25050002 - Meio-fio Ø 300mm
+                </textarea>
+            </div>
+            <button onclick="testNameExtraction()">Testar Extração do Nome</button>
+            <div id="name-result" class="result"></div>
+        </div>
+    </div>
+
+    <script>
+        // Função de extração de dados (copiada do script principal)
+        function extractDataFromDescription(description) {
+            const data = {
+                workNumber: '',
+                workProduct: '',
+                workMeasure: '',
+                workObservation: '',
+                workStatus: 'planejamento',
+                workDate: new Date().toISOString().split('T')[0]
+            };
+            
+            if (!description) return data;
+            
+            try {
+                // Criar um elemento temporário para fazer parse do HTML
+                const tempDiv = document.createElement('div');
+                tempDiv.innerHTML = description;
+                
+                // Procurar por padrões comuns de dados estruturados
+                const text = tempDiv.textContent || tempDiv.innerText || description;
+                
+                console.log('Texto extraído para parsing:', text);
+                
+                // Padrões para extrair informações (mais robustos)
+                const patterns = {
+                    workNumber: [
+                        /OS[:\s]*([^\s<]+)/i,
+                        /Ordem[:\s]*de[:\s]*Serviço[:\s]*([^\s<]+)/i,
+                        /Número[:\s]*([^\s<]+)/i,
+                        /OS[:\s]*([0-9]+)/i,
+                        /O\.S\.?[:\s]*([^\s<]+)/i,
+                        /Ordem[:\s]*([0-9]+)/i,
+                        /Nº[:\s]*([^\s<]+)/i,
+                        /#([0-9]+)/i
+                    ],
+                    workProduct: [
+                        /Produto[:\s]*([^<\n\r]+?)(?:\s*<br\s*\/?>|\s*Medida|\s*Status|\s*Data|\s*Observação|$)/i,
+                        /Tipo[:\s]*([^<\n\r]+?)(?:\s*<br\s*\/?>|\s*Medida|\s*Status|\s*Data|\s*Observação|$)/i,
+                        /Serviço[:\s]*([^<\n\r]+?)(?:\s*<br\s*\/?>|\s*Medida|\s*Status|\s*Data|\s*Observação|$)/i,
+                        /Material[:\s]*([^<\n\r]+?)(?:\s*<br\s*\/?>|\s*Medida|\s*Status|\s*Data|\s*Observação|$)/i,
+                        /Item[:\s]*([^<\n\r]+?)(?:\s*<br\s*\/?>|\s*Medida|\s*Status|\s*Data|\s*Observação|$)/i,
+                        /Descrição[:\s]*([^<\n\r]+?)(?:\s*<br\s*\/?>|\s*Medida|\s*Status|\s*Data|\s*Observação|$)/i,
+                        /Especificação[:\s]*([^<\n\r]+?)(?:\s*<br\s*\/?>|\s*Medida|\s*Status|\s*Data|\s*Observação|$)/i,
+                        // Padrões para marcações antigas
+                        /<b>Produto:<\/b>\s*([^<]+)/i,
+                        /<b>Tipo:<\/b>\s*([^<]+)/i,
+                        /<b>Serviço:<\/b>\s*([^<]+)/i,
+                        /<b>Material:<\/b>\s*([^<]+)/i,
+                        /<b>Item:<\/b>\s*([^<]+)/i,
+                        /<b>Descrição:<\/b>\s*([^<]+)/i,
+                        /<b>Especificação:<\/b>\s*([^<]+)/i,
+                        // Padrões simples
+                        /Produto:\s*([^<\n\r]+)/i,
+                        /Tipo:\s*([^<\n\r]+)/i,
+                        /Serviço:\s*([^<\n\r]+)/i,
+                        /Material:\s*([^<\n\r]+)/i,
+                        /Item:\s*([^<\n\r]+)/i,
+                        /Descrição:\s*([^<\n\r]+)/i,
+                        /Especificação:\s*([^<\n\r]+)/i
+                    ],
+                    workMeasure: [
+                        /Medida[:\s]*([^<\n\r]+?)(?:\s*<br\s*\/?>|\s*Status|\s*Data|\s*Observação|$)/i,
+                        /Quantidade[:\s]*([^<\n\r]+?)(?:\s*<br\s*\/?>|\s*Status|\s*Data|\s*Observação|$)/i,
+                        /Dimensão[:\s]*([^<\n\r]+?)(?:\s*<br\s*\/?>|\s*Status|\s*Data|\s*Observação|$)/i,
+                        /Tamanho[:\s]*([^<\n\r]+?)(?:\s*<br\s*\/?>|\s*Status|\s*Data|\s*Observação|$)/i,
+                        /Diâmetro[:\s]*([^<\n\r]+?)(?:\s*<br\s*\/?>|\s*Status|\s*Data|\s*Observação|$)/i,
+                        /Comprimento[:\s]*([^<\n\r]+?)(?:\s*<br\s*\/?>|\s*Status|\s*Data|\s*Observação|$)/i,
+                        /Largura[:\s]*([^<\n\r]+?)(?:\s*<br\s*\/?>|\s*Status|\s*Data|\s*Observação|$)/i,
+                        /Altura[:\s]*([^<\n\r]+?)(?:\s*<br\s*\/?>|\s*Status|\s*Data|\s*Observação|$)/i,
+                        /Volume[:\s]*([^<\n\r]+?)(?:\s*<br\s*\/?>|\s*Status|\s*Data|\s*Observação|$)/i,
+                        /Área[:\s]*([^<\n\r]+?)(?:\s*<br\s*\/?>|\s*Status|\s*Data|\s*Observação|$)/i,
+                        /Metragem[:\s]*([^<\n\r]+?)(?:\s*<br\s*\/?>|\s*Status|\s*Data|\s*Observação|$)/i,
+                        /Unidade[:\s]*([^<\n\r]+?)(?:\s*<br\s*\/?>|\s*Status|\s*Data|\s*Observação|$)/i,
+                        /Ø[:\s]*([^<\n\r]+?)(?:\s*<br\s*\/?>|\s*Status|\s*Data|\s*Observação|$)/i,
+                        /φ[:\s]*([^<\n\r]+?)(?:\s*<br\s*\/?>|\s*Status|\s*Data|\s*Observação|$)/i,
+                        // Padrões para marcações antigas
+                        /<b>Medida:<\/b>\s*([^<]+)/i,
+                        /<b>Quantidade:<\/b>\s*([^<]+)/i,
+                        /<b>Dimensão:<\/b>\s*([^<]+)/i,
+                        /<b>Tamanho:<\/b>\s*([^<]+)/i,
+                        /<b>Diâmetro:<\/b>\s*([^<]+)/i,
+                        /<b>Comprimento:<\/b>\s*([^<]+)/i,
+                        /<b>Largura:<\/b>\s*([^<]+)/i,
+                        /<b>Altura:<\/b>\s*([^<]+)/i,
+                        /<b>Volume:<\/b>\s*([^<]+)/i,
+                        /<b>Área:<\/b>\s*([^<]+)/i,
+                        /<b>Metragem:<\/b>\s*([^<]+)/i,
+                        /<b>Unidade:<\/b>\s*([^<]+)/i,
+                        // Padrões simples
+                        /Medida:\s*([^<\n\r]+)/i,
+                        /Quantidade:\s*([^<\n\r]+)/i,
+                        /Dimensão:\s*([^<\n\r]+)/i,
+                        /Tamanho:\s*([^<\n\r]+)/i,
+                        /Diâmetro:\s*([^<\n\r]+)/i,
+                        /Comprimento:\s*([^<\n\r]+)/i,
+                        /Largura:\s*([^<\n\r]+)/i,
+                        /Altura:\s*([^<\n\r]+)/i,
+                        /Volume:\s*([^<\n\r]+)/i,
+                        /Área:\s*([^<\n\r]+)/i,
+                        /Metragem:\s*([^<\n\r]+)/i,
+                        /Unidade:\s*([^<\n\r]+)/i
+                    ],
+                    workObservation: [
+                        /Observação[:\s]*([^<\n\r]+?)(?:\s*<br\s*\/?>|$)/i,
+                        /Obs[:\s]*([^<\n\r]+?)(?:\s*<br\s*\/?>|$)/i,
+                        /Nota[:\s]*([^<\n\r]+?)(?:\s*<br\s*\/?>|$)/i,
+                        /Comentário[:\s]*([^<\n\r]+?)(?:\s*<br\s*\/?>|$)/i,
+                        /Detalhe[:\s]*([^<\n\r]+?)(?:\s*<br\s*\/?>|$)/i,
+                        /Observações[:\s]*([^<\n\r]+?)(?:\s*<br\s*\/?>|$)/i,
+                        // Padrões para marcações antigas
+                        /<b>Observação:<\/b>\s*([^<]+)/i,
+                        /<b>Obs:<\/b>\s*([^<]+)/i,
+                        /<b>Nota:<\/b>\s*([^<]+)/i,
+                        /<b>Comentário:<\/b>\s*([^<]+)/i,
+                        /<b>Detalhe:<\/b>\s*([^<]+)/i,
+                        /<b>Observações:<\/b>\s*([^<]+)/i,
+                        // Padrões simples
+                        /Observação:\s*([^<\n\r]+)/i,
+                        /Obs:\s*([^<\n\r]+)/i,
+                        /Nota:\s*([^<\n\r]+)/i,
+                        /Comentário:\s*([^<\n\r]+)/i,
+                        /Detalhe:\s*([^<\n\r]+)/i,
+                        /Observações:\s*([^<\n\r]+)/i
+                    ],
+                    workStatus: [
+                        /Status[:\s]*([^<\n\r]+?)(?:\s*<br\s*\/?>|\s*Data|\s*Observação|$)/i,
+                        /Situação[:\s]*([^<\n\r]+?)(?:\s*<br\s*\/?>|\s*Data|\s*Observação|$)/i,
+                        /Estado[:\s]*([^<\n\r]+?)(?:\s*<br\s*\/?>|\s*Data|\s*Observação|$)/i,
+                        /Fase[:\s]*([^<\n\r]+?)(?:\s*<br\s*\/?>|\s*Data|\s*Observação|$)/i,
+                        // Padrões para marcações antigas
+                        /<b>Status:<\/b>\s*([^<]+)/i,
+                        /<b>Situação:<\/b>\s*([^<]+)/i,
+                        /<b>Estado:<\/b>\s*([^<]+)/i,
+                        /<b>Fase:<\/b>\s*([^<]+)/i,
+                        // Padrões simples
+                        /Status:\s*([^<\n\r]+)/i,
+                        /Situação:\s*([^<\n\r]+)/i,
+                        /Estado:\s*([^<\n\r]+)/i,
+                        /Fase:\s*([^<\n\r]+)/i
+                    ],
+                    workDate: [
+                        /Data[:\s]*([0-9]{2}[\/\-][0-9]{2}[\/\-][0-9]{4})/i,
+                        /Data[:\s]*([0-9]{4}[\/\-][0-9]{2}[\/\-][0-9]{2})/i,
+                        /Data[:\s]*([0-9]{1,2}[\/\-][0-9]{1,2}[\/\-][0-9]{4})/i,
+                        /Data[:\s]*([0-9]{4}[\/\-][0-9]{1,2}[\/\-][0-9]{1,2})/i,
+                        // Padrões para marcações antigas
+                        /<b>Data:<\/b>\s*([0-9]{2}[\/\-][0-9]{2}[\/\-][0-9]{4})/i,
+                        /<b>Data:<\/b>\s*([0-9]{4}[\/\-][0-9]{2}[\/\-][0-9]{2})/i,
+                        /<b>Data:<\/b>\s*([0-9]{1,2}[\/\-][0-9]{1,2}[\/\-][0-9]{4})/i,
+                        /<b>Data:<\/b>\s*([0-9]{4}[\/\-][0-9]{1,2}[\/\-][0-9]{1,2})/i,
+                        // Padrões simples
+                        /Data:\s*([0-9]{2}[\/\-][0-9]{2}[\/\-][0-9]{4})/i,
+                        /Data:\s*([0-9]{4}[\/\-][0-9]{2}[\/\-][0-9]{2})/i,
+                        /Data:\s*([0-9]{1,2}[\/\-][0-9]{1,2}[\/\-][0-9]{4})/i,
+                        /Data:\s*([0-9]{4}[\/\-][0-9]{1,2}[\/\-][0-9]{1,2})/i
+                    ]
+                };
+                
+                // Aplicar padrões para extrair dados
+                Object.keys(patterns).forEach(key => {
+                    for (const pattern of patterns[key]) {
+                        const match = text.match(pattern);
+                        if (match && match[1]) {
+                            // Limpar o texto extraído
+                            let extractedText = match[1].trim();
+                            
+                            // Remover tags HTML se houver
+                            extractedText = extractedText.replace(/<[^>]*>/g, '');
+                            
+                            // Limitar o tamanho do texto para evitar overflow
+                            if (extractedText.length > 100) {
+                                extractedText = extractedText.substring(0, 100) + '...';
+                            }
+                            
+                            console.log(`Extraído ${key}:`, extractedText);
+                            data[key] = extractedText;
+                            break;
+                        }
+                    }
+                });
+                
+                console.log('Dados extraídos finais:', data);
+                
+                // Limpar dados extraídos
+                Object.keys(data).forEach(key => {
+                    if (data[key]) {
+                        data[key] = data[key].replace(/[<>]/g, '').trim();
+                    }
+                });
+                
+            } catch (error) {
+                console.warn('Erro ao extrair dados da descrição:', error);
+            }
+            
+            return data;
+        }
+        
+        // Função para extrair informações do nome da obra
+        function extractInfoFromName(name) {
+            const info = {
+                workNumber: '',
+                workProduct: '',
+                workMeasure: ''
+            };
+            
+            if (!name) return info;
+            
+            console.log('Extraindo informações do nome:', name);
+            
+            try {
+                // Padrões para extrair do nome
+                const namePatterns = {
+                    workNumber: [
+                        /OS[:\s]*([0-9]+)/i,
+                        /O\.S\.?[:\s]*([0-9]+)/i,
+                        /Ordem[:\s]*([0-9]+)/i,
+                        /Nº[:\s]*([0-9]+)/i,
+                        /#([0-9]+)/i,
+                        /^([0-9]+)[\s\-]/i
+                    ],
+                    workProduct: [
+                        /Tubo[:\s]*de[:\s]*([^\(]+)/i,
+                        /Canal[:\s]*de[:\s]*([^\(]+)/i,
+                        /Meio-fio/i,
+                        /Pavimentação/i,
+                        /Drenagem/i,
+                        /Iluminação/i,
+                        /Saneamento/i,
+                        /Asfalto/i,
+                        /Concreto/i,
+                        /Bloco/i,
+                        /Tijolo/i,
+                        /Madeira/i,
+                        /Metal/i,
+                        /Plástico/i,
+                        /PVC/i,
+                        /Ferro/i,
+                        /Aço/i
+                    ],
+                    workMeasure: [
+                        /Ø[:\s]*([0-9]+[^\)]*)/i,
+                        /φ[:\s]*([0-9]+[^\)]*)/i,
+                        /Diâmetro[:\s]*([0-9]+[^\)]*)/i,
+                        /([0-9]+[^\)]*mm)/i,
+                        /([0-9]+[^\)]*cm)/i,
+                        /([0-9]+[^\)]*m)/i,
+                        /([0-9]+[^\)]*metros)/i,
+                        /([0-9]+[^\)]*unidades)/i,
+                        /([0-9]+[^\)]*peças)/i,
+                        /([0-9]+[^\)]*m²)/i,
+                        /([0-9]+[^\)]*m³)/i
+                    ]
+                };
+                
+                // Aplicar padrões
+                Object.keys(namePatterns).forEach(key => {
+                    for (const pattern of namePatterns[key]) {
+                        const match = name.match(pattern);
+                        if (match && match[1]) {
+                            info[key] = match[1].trim();
+                            break;
+                        } else if (match && !match[1]) {
+                            // Para padrões que não capturam grupo (como "Meio-fio")
+                            info[key] = match[0].trim();
+                            break;
+                        }
+                    }
+                });
+                
+                // Limpar dados extraídos
+                Object.keys(info).forEach(key => {
+                    if (info[key]) {
+                        info[key] = info[key].replace(/[()]/g, '').trim();
+                    }
+                });
+                
+                console.log('Informações extraídas do nome:', info);
+                
+            } catch (error) {
+                console.warn('Erro ao extrair informações do nome:', error);
+            }
+            
+            return info;
+        }
+        
+        function displayResults(data, containerId) {
+            const container = document.getElementById(containerId);
+            let html = '<h4>Resultados da Extração:</h4>';
+            
+            Object.keys(data).forEach(key => {
+                const value = data[key] || 'Não encontrado';
+                const label = key.charAt(0).toUpperCase() + key.slice(1).replace(/([A-Z])/g, ' $1');
+                html += `<div class="field">
+                    <span class="field-label">${label}:</span>
+                    <span class="field-value">${value}</span>
+                </div>`;
+            });
+            
+            container.innerHTML = html;
+            container.className = 'result success';
+        }
+        
+        function testOldExtraction() {
+            const description = document.getElementById('oldDescription').value;
+            const data = extractDataFromDescription(description);
+            displayResults(data, 'old-result');
+        }
+        
+        function testSimpleExtraction() {
+            const description = document.getElementById('simpleDescription').value;
+            const data = extractDataFromDescription(description);
+            displayResults(data, 'simple-result');
+        }
+        
+        function testNameExtraction() {
+            const name = document.getElementById('workName').value;
+            const data = extractInfoFromName(name);
+            displayResults(data, 'name-result');
+        }
+    </script>
+</body>
+</html>
