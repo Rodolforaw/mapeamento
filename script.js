@@ -1578,9 +1578,14 @@ async function handleFileImport(event) {
             throw new Error('Arquivo não é um KML válido');
         }
         
+        console.log('Conteúdo KML a ser parseado:', kmlContent.substring(0, 500) + '...');
+        
         const kmlData = await parseKML(kmlContent);
         
+        console.log('Dados parseados do KML:', kmlData);
+        
         if (!kmlData || kmlData.length === 0) {
+            console.error('Nenhuma obra encontrada no arquivo. Conteúdo KML:', kmlContent);
             throw new Error('Nenhuma obra encontrada no arquivo');
         }
         
@@ -1675,18 +1680,59 @@ function generateKMLPlacemark(work) {
     let coordinates = '';
     let geometry = '';
     
-    if (work.workType === 'marker') {
-        const pos = work.getLatLng();
-        coordinates = `${pos.lng},${pos.lat},0`;
-        geometry = `<Point><coordinates>${coordinates}</coordinates></Point>`;
-    } else if (work.workType === 'polygon') {
-        const latLngs = work.getLatLngs()[0];
-        coordinates = latLngs.map(latLng => `${latLng.lng},${latLng.lat},0`).join(' ');
-        geometry = `<Polygon><outerBoundaryIs><LinearRing><coordinates>${coordinates}</coordinates></LinearRing></outerBoundaryIs></Polygon>`;
-    } else if (work.workType === 'polyline') {
-        const latLngs = work.getLatLngs();
-        coordinates = latLngs.map(latLng => `${latLng.lng},${latLng.lat},0`).join(' ');
-        geometry = `<LineString><coordinates>${coordinates}</coordinates></LineString>`;
+    try {
+        if (work.workType === 'marker' || work instanceof L.Marker) {
+            const pos = work.getLatLng();
+            coordinates = `${pos.lng},${pos.lat},0`;
+            geometry = `<Point><coordinates>${coordinates}</coordinates></Point>`;
+        } else if (work.workType === 'polygon' || work instanceof L.Polygon) {
+            const latLngs = work.getLatLngs()[0];
+            coordinates = latLngs.map(latLng => `${latLng.lng},${latLng.lat},0`).join(' ');
+            geometry = `<Polygon><outerBoundaryIs><LinearRing><coordinates>${coordinates}</coordinates></LinearRing></outerBoundaryIs></Polygon>`;
+        } else if (work.workType === 'polyline' || work instanceof L.Polyline) {
+            const latLngs = work.getLatLngs();
+            coordinates = latLngs.map(latLng => `${latLng.lng},${latLng.lat},0`).join(' ');
+            geometry = `<LineString><coordinates>${coordinates}</coordinates></LineString>`;
+        } else if (work.workType === 'circle' || work instanceof L.Circle) {
+            const center = work.getLatLng();
+            const radius = work.getRadius();
+            coordinates = `${center.lng},${center.lat},0`;
+            geometry = `<Circle><center>${coordinates}</center><radius>${radius}</radius></Circle>`;
+        } else if (work.workType === 'rectangle' || work instanceof L.Rectangle) {
+            const bounds = work.getBounds();
+            const north = bounds.getNorth();
+            const south = bounds.getSouth();
+            const east = bounds.getEast();
+            const west = bounds.getWest();
+            coordinates = `${west},${south},0 ${east},${south},0 ${east},${north},0 ${west},${north},0 ${west},${south},0`;
+            geometry = `<Polygon><outerBoundaryIs><LinearRing><coordinates>${coordinates}</coordinates></LinearRing></outerBoundaryIs></Polygon>`;
+        } else if (work.workType === 'circlemarker' || work instanceof L.CircleMarker) {
+            const pos = work.getLatLng();
+            const radius = work.getRadius();
+            coordinates = `${pos.lng},${pos.lat},0`;
+            geometry = `<Circle><center>${coordinates}</center><radius>${radius}</radius></Circle>`;
+        } else {
+            // Fallback para marcador se não conseguir determinar o tipo
+            console.warn('Tipo de obra não reconhecido, usando marcador como fallback:', work.workType);
+            if (work.getLatLng) {
+                const pos = work.getLatLng();
+                coordinates = `${pos.lng},${pos.lat},0`;
+                geometry = `<Point><coordinates>${coordinates}</coordinates></Point>`;
+            } else {
+                console.error('Não foi possível extrair coordenadas da obra:', work);
+                return '';
+            }
+        }
+        
+        // Verificar se a geometria foi gerada corretamente
+        if (!geometry || !coordinates) {
+            console.error('Falha ao gerar geometria para obra:', work);
+            return '';
+        }
+        
+    } catch (error) {
+        console.error('Erro ao gerar geometria KML:', error, work);
+        return '';
     }
     
     return `
@@ -1694,20 +1740,25 @@ function generateKMLPlacemark(work) {
             <name>${work.workName || 'Obra sem nome'}</name>
             <description>
                 <![CDATA[
-                    <b>Número da OS:</b> ${work.workNumber || 'Não informado'}<br/>
+                    <b>OS:</b> ${work.workNumber || 'Não informado'}<br/>
                     <b>Produto:</b> ${work.workProduct || 'Não informado'}<br/>
                     <b>Medida:</b> ${work.workMeasure || 'Não informado'}<br/>
+                    <b>Status:</b> ${work.workStatus || 'planejamento'}<br/>
+                    <b>Data:</b> ${work.workDate || new Date().toISOString().split('T')[0]}<br/>
                     <b>Observação:</b> ${work.workObservation || 'Sem observação'}
                 ]]>
             </description>
             <Style>
                 <LineStyle>
                     <color>ff6d28d9</color>
-                    <width>2</width>
+                    <width>3</width>
                 </LineStyle>
                 <PolyStyle>
                     <color>806d28d9</color>
                 </PolyStyle>
+                <IconStyle>
+                    <color>ff6d28d9</color>
+                </IconStyle>
             </Style>
             ${geometry}
         </Placemark>`;
@@ -1727,11 +1778,34 @@ async function parseKML(kmlContent) {
                 throw new Error('Erro ao fazer parse do XML: ' + parseError.textContent);
             }
             
-            // Buscar todos os Placemarks
-            const placemarks = xmlDoc.getElementsByTagName('Placemark');
+            // Buscar todos os Placemarks (múltiplas formas)
+            let placemarks = xmlDoc.getElementsByTagName('Placemark');
+            
+            // Se não encontrar placemarks, tentar outras tags
+            if (placemarks.length === 0) {
+                placemarks = xmlDoc.getElementsByTagName('placemark');
+            }
+            
+            // Se ainda não encontrar, procurar por qualquer elemento com coordenadas
+            if (placemarks.length === 0) {
+                const allElements = xmlDoc.getElementsByTagName('*');
+                const elementsWithCoords = Array.from(allElements).filter(el => {
+                    const coords = el.getElementsByTagName('coordinates')[0];
+                    return coords && coords.textContent.trim();
+                });
+                placemarks = elementsWithCoords;
+            }
+            
             const works = [];
             
             console.log(`Processando ${placemarks.length} placemarks do KML...`);
+            
+            if (placemarks.length === 0) {
+                console.warn('Nenhum placemark encontrado no KML');
+                console.log('Estrutura do KML:', xmlDoc.documentElement.outerHTML.substring(0, 1000));
+                resolve([]);
+                return;
+            }
             
             for (let i = 0; i < placemarks.length; i++) {
                 const placemark = placemarks[i];
@@ -2880,14 +2954,30 @@ async function downloadIndividualKMZ(workId) {
 
 // Gerar KML para uma obra individual
 function generateIndividualKML(layer) {
-    const kml = `<?xml version="1.0" encoding="UTF-8"?>
+    try {
+        // Gerar o placemark KML
+        const placemark = generateKMLPlacemark(layer);
+        
+        // Verificar se o placemark foi gerado corretamente
+        if (!placemark || placemark.trim() === '') {
+            console.error('Falha ao gerar placemark para a obra:', layer);
+            throw new Error('Não foi possível gerar geometria válida para a obra');
+        }
+        
+        const kml = `<?xml version="1.0" encoding="UTF-8"?>
 <kml xmlns="http://www.opengis.net/kml/2.2">
     <Document>
         <name>${layer.workName || 'Obra Individual'}</name>
         <description>Sistema de Controle de Obras - Maricá</description>
-        ${generateKMLPlacemark(layer)}
+        ${placemark}
     </Document>
 </kml>`;
-    
-    return kml;
+        
+        console.log('KML individual gerado com sucesso:', kml.substring(0, 200) + '...');
+        return kml;
+        
+    } catch (error) {
+        console.error('Erro ao gerar KML individual:', error);
+        throw error;
+    }
 }
