@@ -2845,7 +2845,7 @@ function exportToExcel() {
 }
 
 // Baixar KMZ individual de uma obra
-function downloadIndividualKMZ(workId) {
+async function downloadIndividualKMZ(workId) {
     const work = worksTableData.find(w => w.id === workId);
     if (!work || !work.layer) {
         showToast('Obra não encontrada!', 'error');
