@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Teste Supabase</title>
+</head>
+<body>
+    <h1>Teste de Conexão com Supabase</h1>
+    <button id="testBtn">Testar Conexão</button>
+    <div id="result"></div>
+
+    <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+    <script src="config.js"></script>
+    <script>
+        // Configuração do Supabase
+        const SUPABASE_URL = CONFIG.SUPABASE_URL;
+        const SUPABASE_ANON_KEY = CONFIG.SUPABASE_ANON_KEY;
+
+        console.log('Configurações:', { SUPABASE_URL, SUPABASE_ANON_KEY });
+
+        // Função para gerar ID
+        function generateWorkId() {
+            return 'work_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+        }
+
+        // Teste de conexão
+        async function testSupabase() {
+            try {
+                const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+                
+                // Gerar dados de teste
+                const testData = {
+                    id: generateWorkId(),
+                    name: 'Teste de Conexão',
+                    description: 'Teste de conexão com Supabase',
+                    type: 'marker',
+                    geometry: JSON.stringify({
+                        lat: -22.9194,
+                        lng: -42.8186
+                    }),
+                    work_number: 'TEST001',
+                    product: 'Teste',
+                    measure: '1 unidade',
+                    observation: 'Teste de conexão',
+                    status: 'planejamento',
+                    date: new Date().toISOString()
+                };
+
+                console.log('Dados de teste:', testData);
+
+                // Tentar inserir
+                const { data, error } = await supabase
+                    .from('works')
+                    .insert([testData]);
+
+                if (error) {
+                    console.error('Erro:', error);
+                    document.getElementById('result').innerHTML = `
+                        <h3>Erro:</h3>
+                        <pre>${JSON.stringify(error, null, 2)}</pre>
+                    `;
+                } else {
+                    console.log('Sucesso:', data);
+                    document.getElementById('result').innerHTML = `
+                        <h3>Sucesso!</h3>
+                        <pre>${JSON.stringify(data, null, 2)}</pre>
+                    `;
+                }
+            } catch (err) {
+                console.error('Erro geral:', err);
+                document.getElementById('result').innerHTML = `
+                    <h3>Erro Geral:</h3>
+                    <pre>${err.message}</pre>
+                `;
+            }
+        }
+
+        document.getElementById('testBtn').addEventListener('click', testSupabase);
+    </script>
+</body>
+</html>
